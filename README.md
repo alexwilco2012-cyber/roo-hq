@@ -1,5 +1,7 @@
 # Roo HQ — web app 🐾
 
+**▶ Live: https://alexwilco2012-cyber.github.io/roo-hq/** (hosted free on GitHub Pages)
+
 A mobile-first web app for **Me** and **Anna** to run a weekly household chore plan and **swap
 chores week to week with one tap**. Roo is the dog (she/her). It works offline, installs to your
 home screen like a real app, and **syncs one shared plan live between both your phones**.
