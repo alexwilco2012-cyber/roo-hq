@@ -13,6 +13,7 @@ window.RooHQ = window.RooHQ || {};
   var currentMonday;
   var choreMap = {};       // instanceID -> chore (current week)
   var lastStamp = null;    // to decide when to refocus "today"
+  var currentFilter = "all"; // all | me | anna
   var els = {};
 
   function $(id) { return document.getElementById(id); }
@@ -35,12 +36,15 @@ window.RooHQ = window.RooHQ || {};
     wireTopbar();
     wireSettings();
 
-    Store.onChange(function () { render(); });
-
-    Sync.init({
-      onStatus: onSyncStatus,
-      onRemote: function (remoteDoc) { Store.mergeRemote(remoteDoc); }
+    Store.onChange(function (ev) {
+      render();
+      if (ev && ev.source === "remote" && ev.announce) {
+        var msg = describeChanges(ev.changes);
+        if (msg) toast(msg);
+      }
     });
+
+    Sync.init({ onStatus: onSyncStatus });
     Sync.autoConnect();
 
     render();
@@ -48,8 +52,8 @@ window.RooHQ = window.RooHQ || {};
   }
 
   function cacheEls() {
-    ["days", "weekRange", "weekSub", "weekProgressLabel", "weekProgressFill",
-     "prevWeek", "nextWeek", "weekLabelBtn", "settingsBtn", "syncChip", "syncLabel",
+    ["days", "weekRange", "weekSub", "weekProgressLabel", "weekProgressFill", "weekProgressScope",
+     "filterRow", "prevWeek", "nextWeek", "weekLabelBtn", "settingsBtn", "syncChip", "syncLabel",
      "settingsSheet", "meName", "annaName", "meAvatar", "annaAvatar", "seasonToggle",
      "householdCode", "connectBtn", "disconnectBtn", "randomCodeBtn", "syncStatus", "firebaseHint",
      "exportBtn", "importBtn", "importFile", "resetBtn", "rulesList", "gymMe", "gymAnna", "toast"
@@ -58,8 +62,11 @@ window.RooHQ = window.RooHQ || {};
 
   // ---------- render ----------
   function render() {
+    renderFilters();
+
     var chores = Logic.generateWeek(currentMonday).filter(function (c) {
-      return !Logic.isHiddenMow(c, Store.mowingInSeason());
+      if (Logic.isHiddenMow(c, Store.mowingInSeason())) return false;
+      return matchesFilter(Store.assigneeFor(c));
     });
     choreMap = {};
     chores.forEach(function (c) { choreMap[c.instanceID] = c; });
@@ -67,6 +74,9 @@ window.RooHQ = window.RooHQ || {};
     var thisWeek = Logic.stamp(currentMonday) === Logic.stamp(Logic.mondayStart(new Date()));
     els.weekRange.textContent = weekRangeLabel();
     els.weekSub.textContent = thisWeek ? "This week" : "Plan";
+    els.weekProgressScope.textContent = currentFilter === "all"
+      ? "This week"
+      : Store.name(currentFilter) + "'s chores";
 
     // overall progress
     var done = 0;
@@ -183,7 +193,53 @@ window.RooHQ = window.RooHQ || {};
     els.weekLabelBtn.addEventListener("click", function () { currentMonday = Logic.mondayStart(new Date()); lastStamp = null; render(); });
     els.settingsBtn.addEventListener("click", openSettings);
     els.syncChip.addEventListener("click", openSettings);
+    els.filterRow.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-filter]");
+      if (!b) return;
+      currentFilter = b.getAttribute("data-filter");
+      render();
+    });
   }
+
+  function matchesFilter(assignee) {
+    if (currentFilter === "all") return true;
+    if (currentFilter === "me") return assignee === "me" || assignee === "both";
+    if (currentFilter === "anna") return assignee === "anna" || assignee === "both";
+    return true;
+  }
+
+  function renderFilters() {
+    var defs = [["all", "All"], ["me", Store.name("me")], ["anna", Store.name("anna")]];
+    els.filterRow.innerHTML = defs.map(function (d) {
+      var active = currentFilter === d[0];
+      return '<button class="chip ' + (active ? "active" : "") + '" data-filter="' + d[0] +
+             '" role="tab" aria-selected="' + active + '">' + esc(d[1]) + "</button>";
+    }).join("");
+  }
+
+  // Build a short toast describing what just synced in from the other phone.
+  function describeChanges(changes) {
+    if (!changes || !changes.length) return null;
+    if (changes.length > 2) return "Plan updated.";
+    return changes.map(function (c) {
+      if (c.kind === "assignee") return Store.name(c.value) + ": “" + shorten(titleFromId(c.id)) + "”";
+      if (c.kind === "done") return (c.value ? "✓ " : "○ ") + "“" + shorten(titleFromId(c.id)) + "”";
+      if (c.kind === "name") return "Name updated";
+      if (c.kind === "season") return "Mowing " + (c.value ? "in season" : "off");
+      if (c.kind === "office") return "Office day " + (c.value ? "set" : "cleared");
+      return "Updated";
+    }).join(" · ");
+  }
+
+  function titleFromId(id) {
+    var key = (id || "").split("|")[1];
+    for (var i = 0; i < Seed.TEMPLATES.length; i++) {
+      if (Seed.TEMPLATES[i].key === key) return Seed.TEMPLATES[i].title;
+    }
+    return "a chore";
+  }
+
+  function shorten(s) { return s.length > 32 ? s.slice(0, 30) + "…" : s; }
 
   function onDayClick(e) {
     var btn = e.target.closest("[data-act]");

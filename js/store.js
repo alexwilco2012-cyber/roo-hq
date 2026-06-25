@@ -54,9 +54,11 @@ window.RooHQ = window.RooHQ || {};
     try { localStorage.setItem(LS_KEY, JSON.stringify(doc)); } catch (e) {}
   }
 
-  function emit(source, patches) {
+  function emit(source, patches, extra) {
+    var ev = { source: source, patches: patches || [] };
+    if (extra) { for (var k in extra) { if (extra.hasOwnProperty(k)) ev[k] = extra[k]; } }
     for (var i = 0; i < listeners.length; i++) {
-      try { listeners[i]({ source: source, patches: patches || [] }); } catch (e) {}
+      try { listeners[i](ev); } catch (e) {}
     }
   }
 
@@ -132,44 +134,16 @@ window.RooHQ = window.RooHQ || {};
 
   // --- merge (remote) ----------------------------------------------------
 
-  // Keep whichever field has the larger ts. Returns true if local changed.
-  function mergeField(container, key, remote) {
-    if (!remote || typeof remote.ts !== "number") return false;
-    var local = container[key];
-    if (!local || remote.ts > local.ts) {
-      container[key] = remote;
-      return true;
+  // Merge an incoming remote doc (delegates to the pure Merge engine).
+  // `announce` flags incremental changes that the UI may surface as a toast.
+  // Returns the list of changes that were applied.
+  function mergeRemote(remote, announce) {
+    var changes = RooHQ.Merge.mergeDocInto(doc, remote);
+    if (changes.length) {
+      save();
+      emit("remote", [], { announce: !!announce, changes: changes });
     }
-    return false;
-  }
-
-  // Merge an incoming remote doc; returns true if anything changed locally.
-  function mergeRemote(remote) {
-    if (!remote || typeof remote !== "object") return false;
-    var changed = false;
-
-    if (remote.settings) {
-      ["meName", "annaName", "mowingInSeason"].forEach(function (k) {
-        if (mergeField(doc.settings, k, remote.settings[k])) changed = true;
-      });
-    }
-    if (remote.overrides) {
-      Object.keys(remote.overrides).forEach(function (id) {
-        var ro = remote.overrides[id];
-        if (!ro) return;
-        var lo = doc.overrides[id] || (doc.overrides[id] = {});
-        if (ro.assignee && mergeField(lo, "assignee", ro.assignee)) changed = true;
-        if (ro.done && mergeField(lo, "done", ro.done)) changed = true;
-      });
-    }
-    if (remote.officeDays) {
-      Object.keys(remote.officeDays).forEach(function (ymd) {
-        if (mergeField(doc.officeDays, ymd, remote.officeDays[ymd])) changed = true;
-      });
-    }
-
-    if (changed) { save(); emit("remote", []); }
-    return changed;
+    return changes;
   }
 
   // --- backup / reset ----------------------------------------------------
@@ -181,9 +155,8 @@ window.RooHQ = window.RooHQ || {};
   function importJSON(text) {
     var parsed = JSON.parse(text);
     var incoming = parsed && parsed.doc ? parsed.doc : parsed;
-    var changed = mergeRemote(incoming);
-    if (!changed) { save(); emit("local", []); } // still refresh UI
-    // Importing should also broadcast to the cloud — emit the whole doc as local patches.
+    mergeRemote(incoming, false);
+    // Refresh the UI and push the merged plan up to the cloud (whole doc as local patches).
     emit("local", docAsPatches());
     return true;
   }

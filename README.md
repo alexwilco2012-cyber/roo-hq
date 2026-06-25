@@ -19,7 +19,9 @@ No build step, no app store, no Xcode. Just static files + a free Firebase proje
 - **Tick to complete**, with per-day and per-week progress that **resets each week**.
 - **Office-day flag** (💼) — mark Anna's Aberdeen day; it shows the short-walk + dog-walker reminder.
 - **Seasonal mow toggle** — hide the mow out of season; it stops counting toward progress.
-- **Live sync** between two phones via a shared **household code** (Firebase).
+- **Filter** — All / Me / Anna chips to see just your chores (Both counts for each of you).
+- **Live sync** between two phones via a shared **household code** (Firebase), with a little
+  "what just changed" toast when the other phone makes a move.
 - **Works offline**, installable to the home screen, light/dark mode, the spec's warm palette.
 - **Backup** — export/import the whole plan as a JSON file.
 
@@ -106,6 +108,13 @@ roo-hq-web/
 **The clever bit:** both phones generate the same base plan from the seed, so we only ever sync the
 *differences* — who a chore is assigned to, whether it's done, names, season, office days — each
 keyed by a stable id and timestamped. Tiny payloads, clean merges, no accounts needed.
+
+## Tests
+
+Open **`tests.html`** in any browser. It runs the logic tests (week generation, owners, the locked
+mow, "alternate", seasonal hide) **and a two-device sync simulation** — two phones plus a shared
+"cloud" exchanging diffs — covering propagation, concurrent edits, same-field conflicts, offline
+edits and no-clobber. All green means the sync engine is correct before you even wire up Firebase.
 
 ---
 

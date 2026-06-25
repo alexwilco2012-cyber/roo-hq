@@ -43,11 +43,13 @@
 
       <div class="weekprogress">
         <div class="weekprogress-head">
-          <span>This week</span>
+          <span id="weekProgressScope">This week</span>
           <strong id="weekProgressLabel">0/0</strong>
         </div>
         <div class="bar"><div class="bar-fill" id="weekProgressFill"></div></div>
       </div>
+
+      <div class="filters" id="filterRow" role="tablist" aria-label="Show chores for"></div>
     </header>
 
     <!-- Days -->
@@ -146,6 +148,7 @@
   <script src="js/firebase-config.js"></script>
   <script src="js/seed.js"></script>
   <script src="js/logic.js"></script>
+  <script src="js/merge.js"></script>
   <script src="js/store.js"></script>
   <script src="js/sync.js"></script>
   <script src="js/app.js"></script>

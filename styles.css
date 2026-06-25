@@ -97,6 +97,15 @@ button, input { font-family: inherit; }
 .bar { height: 8px; border-radius: 999px; background: var(--faint); overflow: hidden; }
 .bar-fill { height: 100%; width: 0%; background: var(--me); border-radius: 999px; transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
 
+/* filter chips */
+.filters { display: flex; gap: 6px; margin-top: 12px; }
+.chip {
+  flex: 1; border: 1px solid var(--faint); background: transparent; color: var(--text);
+  padding: 7px 6px; border-radius: 999px; font-size: 0.85rem; font-weight: 650; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chip.active { background: var(--me); border-color: var(--me); color: #fff; }
+
 /* ---------- Days ---------- */
 .days { padding: 8px 16px 8px; }
 

@@ -21,6 +21,7 @@ window.RooHQ = window.RooHQ || {};
   var infoRef = null;
   var code = null;
   var attached = false;
+  var firstSnapshot = true;    // suppress "what changed" toasts on the initial pull
   var statusValue = "local";   // local | connecting | connected | error
 
   function isConfigured() {
@@ -70,6 +71,7 @@ window.RooHQ = window.RooHQ || {};
     if (!code) { setStatus("error"); return; }
     localStorage.setItem(CODE_KEY, code);
     attached = true;
+    firstSnapshot = true;
     setStatus("connecting");
 
     var db = firebase.database();
@@ -98,8 +100,9 @@ window.RooHQ = window.RooHQ || {};
   function onValue(snapshot) {
     var remote = snapshot.val() || {};
     setStatus("connected");
-    cbs.onRemote(remote);     // Store merges by timestamp
-    pushLocalNewer(remote);   // send anything of ours that's newer
+    Store.mergeRemote(remote, !firstSnapshot); // announce only incremental changes
+    firstSnapshot = false;
+    pushLocalNewer(remote);                    // send anything of ours that's newer
   }
 
   function onError(err) {
@@ -117,32 +120,7 @@ window.RooHQ = window.RooHQ || {};
   // Send any local field that's newer than (or missing from) the remote doc.
   function pushLocalNewer(remote) {
     if (!ref) return;
-    remote = remote || {};
-    var doc = Store.getDoc();
-    var up = {};
-
-    var rs = remote.settings || {};
-    ["meName", "annaName", "mowingInSeason"].forEach(function (k) {
-      var lf = doc.settings[k];
-      var rf = rs[k];
-      if (lf && lf.ts > 0 && (!rf || lf.ts > rf.ts)) up["settings/" + k] = lf;
-    });
-
-    var ro = remote.overrides || {};
-    Object.keys(doc.overrides).forEach(function (id) {
-      var lo = doc.overrides[id];
-      var r = ro[id] || {};
-      if (lo.assignee && (!r.assignee || lo.assignee.ts > r.assignee.ts)) up["overrides/" + id + "/assignee"] = lo.assignee;
-      if (lo.done && (!r.done || lo.done.ts > r.done.ts)) up["overrides/" + id + "/done"] = lo.done;
-    });
-
-    var rod = remote.officeDays || {};
-    Object.keys(doc.officeDays).forEach(function (ymd) {
-      var lf = doc.officeDays[ymd];
-      var rf = rod[ymd];
-      if (lf && (!rf || lf.ts > rf.ts)) up["officeDays/" + ymd] = lf;
-    });
-
+    var up = RooHQ.Merge.newerFields(Store.getDoc(), remote || {});
     if (Object.keys(up).length) ref.update(up).catch(function () {});
   }
 
