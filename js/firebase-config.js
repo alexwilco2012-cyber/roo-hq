@@ -1,21 +1,18 @@
 /*
  * firebase-config.js — Roo HQ
  *
- * Paste your own Firebase project's web config here to turn on live sync between phones.
- * See README.md ("Set up live sync") for the 10-minute walkthrough. Until you fill this in
- * (specifically `databaseURL`), the app runs fully on each device with no sync.
- *
- * This config is safe to commit/ship — Firebase web config is public by design; access is
- * controlled by your Realtime Database security rules (see firebase.rules.json).
+ * Live sync is ON: this is the Roo HQ Firebase project's web config.
+ * Safe to commit/ship — Firebase web config is public by design; access is controlled by the
+ * Realtime Database security rules (see firebase.rules.json: a household code of 8+ characters).
  */
 window.RooHQ = window.RooHQ || {};
 
 window.RooHQ.firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "",          // e.g. https://roo-hq-xxxx-default-rtdb.europe-west1.firebasedatabase.app
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyABw67_cCDvEz50VrR_KHIorgmiwLMEKoM",
+  authDomain: "roo-hq.firebaseapp.com",
+  databaseURL: "https://roo-hq-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "roo-hq",
+  storageBucket: "roo-hq.firebasestorage.app",
+  messagingSenderId: "819584829697",
+  appId: "1:819584829697:web:01c2e07ea5a9bbcf8ff300"
 };

@@ -49,6 +49,11 @@ Add it to your iPhone home screen for the full-screen app feel: open the site in
 
 ## Set up live sync (≈ 10 minutes, one time)
 
+> ✅ **Already done for this project.** `js/firebase-config.js` is filled in with the Roo HQ
+> Firebase project and verified working (a real write/read round-trip against the database passed).
+> You can skip straight to **Pair your two phones** below. The steps here are kept for reference /
+> if you ever want to move it to a different Firebase project.
+
 This is what lets a swap on your phone appear on Anna's. It uses **Firebase Realtime Database** —
 free, Google-hosted, nothing for you to run.
 
