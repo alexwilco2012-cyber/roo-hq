@@ -55,6 +55,15 @@ window.RooHQ = window.RooHQ || {};
         }
       });
     }
+    if (remote.customTemplates) {
+      var lct = local.customTemplates || (local.customTemplates = {});
+      Object.keys(remote.customTemplates).forEach(function (key) {
+        if (mergeField(lct, key, remote.customTemplates[key])) {
+          var f = lct[key];
+          changes.push({ kind: f.v ? "customAdd" : "customRemove", key: key, title: f.v && f.v.title });
+        }
+      });
+    }
     return changes;
   }
 
@@ -84,6 +93,14 @@ window.RooHQ = window.RooHQ || {};
       var lf = local.officeDays[ymd];
       var rf = rod[ymd];
       if (lf && (!rf || lf.ts > rf.ts)) up["officeDays/" + ymd] = lf;
+    });
+
+    var rct = remote.customTemplates || {};
+    var lct = local.customTemplates || {};
+    Object.keys(lct).forEach(function (key) {
+      var lf = lct[key];
+      var rf = rct[key];
+      if (lf && (!rf || lf.ts > rf.ts)) up["customTemplates/" + key] = lf;
     });
 
     return up;

@@ -183,6 +183,24 @@ button, input { font-family: inherit; }
 #meAvatar { background: var(--me); width: 30px; height: 30px; }
 #annaAvatar { background: var(--anna); width: 30px; height: 30px; }
 
+.chore-title { padding-right: 20px; } /* keep clear of the edit button on custom chores */
+.edit-btn {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  border: none; background: transparent; cursor: pointer; font-size: 0.95rem;
+  opacity: 0.55; padding: 4px; line-height: 1;
+}
+.edit-btn:hover { opacity: 1; }
+
+/* add/edit chore form */
+.form-row { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; }
+.form-row > span { font-size: 0.82rem; color: var(--muted); }
+.form-row input, .form-row select {
+  border: none; border-bottom: 1px solid var(--faint); background: transparent; color: var(--text);
+  font-size: 1rem; padding: 7px 2px; width: 100%; border-radius: 0;
+}
+.form-row select { appearance: none; -webkit-appearance: none; }
+.form-row input:focus, .form-row select:focus { outline: none; border-bottom-color: var(--me); }
+
 .empty { text-align: center; color: var(--muted); padding: 48px 0; }
 .empty .big { font-size: 2rem; }
 

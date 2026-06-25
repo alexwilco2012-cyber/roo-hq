@@ -19,7 +19,7 @@
   function makeDoc() {
     return {
       settings: { meName: { v: "Me", ts: 0 }, annaName: { v: "Anna", ts: 0 }, mowingInSeason: { v: true, ts: 0 } },
-      overrides: {}, officeDays: {}
+      overrides: {}, officeDays: {}, customTemplates: {}
     };
   }
   function setAssignee(doc, id, v, ts) { (doc.overrides[id] = doc.overrides[id] || {}).assignee = { v: v, ts: ts }; }
@@ -139,6 +139,29 @@
     b.settings.annaName = { v: "Anna B", ts: 700 }; // B renamed Anna
     converge(a, b, cloud);
     eq("no-clobber: A's default doesn't overwrite B", a.settings.annaName.v, "Anna B");
+  })();
+
+  // 7) custom chore: add on A syncs to B; delete on B syncs back to A
+  (function () {
+    var a = makeDoc(), b = makeDoc(), cloud = {};
+    a.customTemplates["custom-1"] = {
+      v: { title: "Water the plants", category: "garden", schedule: "daily", timeOfDay: "morning", defaultAssignee: "me" },
+      ts: 600
+    };
+    converge(a, b, cloud);
+    eq("custom: B receives the new chore", b.customTemplates["custom-1"].v.title, "Water the plants");
+
+    b.customTemplates["custom-1"] = { v: null, ts: 700 }; // delete (tombstone)
+    converge(a, b, cloud);
+    eq("custom: A sees the deletion", a.customTemplates["custom-1"].v, null);
+  })();
+
+  // 8) a custom 'daily' template generates 7 instances in a week
+  (function () {
+    var custom = [{ key: "custom-x", title: "Feed the fish", category: "kitchen", schedule: "daily", timeOfDay: "morning", defaultAssignee: "both", locked: false, swappable: true }];
+    var g = Logic.generateWeek(monday, custom).filter(function (c) { return c.templateKey === "custom-x"; });
+    eq("custom daily chore appears 7×", g.length, 7);
+    assert("custom chore is swappable", Logic.canSwap(g[0]));
   })();
 
   // ---- report ----

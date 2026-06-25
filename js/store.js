@@ -21,8 +21,9 @@ window.RooHQ = window.RooHQ || {};
         annaName: { v: "Anna", ts: 0 },
         mowingInSeason: { v: true, ts: 0 }
       },
-      overrides: {},   // instanceID -> { assignee:{v,ts}, done:{v,by,at,ts} }
-      officeDays: {}    // yyyymmdd -> { v:bool, ts }
+      overrides: {},        // instanceID -> { assignee:{v,ts}, done:{v,by,at,ts} }
+      officeDays: {},       // yyyymmdd -> { v:bool, ts }
+      customTemplates: {}   // key -> { v: templateObject | null (deleted), ts }
     };
   }
 
@@ -47,6 +48,7 @@ window.RooHQ = window.RooHQ || {};
     }
     if (d.overrides && typeof d.overrides === "object") base.overrides = d.overrides;
     if (d.officeDays && typeof d.officeDays === "object") base.officeDays = d.officeDays;
+    if (d.customTemplates && typeof d.customTemplates === "object") base.customTemplates = d.customTemplates;
     return base;
   }
 
@@ -132,6 +134,44 @@ window.RooHQ = window.RooHQ || {};
     emit("local", [{ path: "officeDays/" + ymd, value: field }]);
   }
 
+  // --- custom chores (user-created, shared) ------------------------------
+
+  // Active custom templates as plain template objects (with their key), deleted ones omitted.
+  function getCustomTemplates() {
+    var out = [];
+    Object.keys(doc.customTemplates).forEach(function (key) {
+      var f = doc.customTemplates[key];
+      if (f && f.v) {
+        var tpl = {};
+        for (var k in f.v) { if (f.v.hasOwnProperty(k)) tpl[k] = f.v[k]; }
+        tpl.key = key;
+        tpl.locked = false;
+        tpl.swappable = true;
+        out.push(tpl);
+      }
+    });
+    return out;
+  }
+
+  function getCustomTemplate(key) {
+    var f = doc.customTemplates[key];
+    return f && f.v ? f.v : null;
+  }
+
+  function setCustomTemplate(key, tpl) {
+    var field = { v: tpl, ts: now() };
+    doc.customTemplates[key] = field;
+    save();
+    emit("local", [{ path: "customTemplates/" + key, value: field }]);
+  }
+
+  function deleteCustomTemplate(key) {
+    var field = { v: null, ts: now() };          // tombstone so the delete syncs
+    doc.customTemplates[key] = field;
+    save();
+    emit("local", [{ path: "customTemplates/" + key, value: field }]);
+  }
+
   // --- merge (remote) ----------------------------------------------------
 
   // Merge an incoming remote doc (delegates to the pure Merge engine).
@@ -181,6 +221,9 @@ window.RooHQ = window.RooHQ || {};
     Object.keys(doc.officeDays).forEach(function (ymd) {
       patches.push({ path: "officeDays/" + ymd, value: doc.officeDays[ymd] });
     });
+    Object.keys(doc.customTemplates).forEach(function (key) {
+      patches.push({ path: "customTemplates/" + key, value: doc.customTemplates[key] });
+    });
     return patches;
   }
 
@@ -201,6 +244,10 @@ window.RooHQ = window.RooHQ || {};
     setAssignee: setAssignee,
     setDone: setDone,
     setOfficeDay: setOfficeDay,
+    getCustomTemplates: getCustomTemplates,
+    getCustomTemplate: getCustomTemplate,
+    setCustomTemplate: setCustomTemplate,
+    deleteCustomTemplate: deleteCustomTemplate,
     mergeRemote: mergeRemote,
     exportJSON: exportJSON,
     importJSON: importJSON,

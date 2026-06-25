@@ -35,6 +35,7 @@ window.RooHQ = window.RooHQ || {};
     cacheEls();
     wireTopbar();
     wireSettings();
+    wireChoreForm();
 
     Store.onChange(function (ev) {
       render();
@@ -56,7 +57,9 @@ window.RooHQ = window.RooHQ || {};
      "filterRow", "prevWeek", "nextWeek", "weekLabelBtn", "settingsBtn", "syncChip", "syncLabel",
      "settingsSheet", "meName", "annaName", "meAvatar", "annaAvatar", "seasonToggle",
      "householdCode", "connectBtn", "disconnectBtn", "randomCodeBtn", "syncStatus", "firebaseHint",
-     "exportBtn", "importBtn", "importFile", "resetBtn", "rulesList", "gymMe", "gymAnna", "toast"
+     "exportBtn", "importBtn", "importFile", "resetBtn", "rulesList", "gymMe", "gymAnna", "toast",
+     "addChoreBtn", "choreSheet", "choreSheetTitle", "choreTitle", "choreCategory", "choreSchedule",
+     "choreTime", "choreWho", "choreNotes", "saveChoreBtn", "deleteChoreBtn"
     ].forEach(function (id) { els[id] = $(id); });
   }
 
@@ -64,7 +67,7 @@ window.RooHQ = window.RooHQ || {};
   function render() {
     renderFilters();
 
-    var chores = Logic.generateWeek(currentMonday).filter(function (c) {
+    var chores = Logic.generateWeek(currentMonday, Store.getCustomTemplates()).filter(function (c) {
       if (Logic.isHiddenMow(c, Store.mowingInSeason())) return false;
       return matchesFilter(Store.assigneeFor(c));
     });
@@ -150,8 +153,14 @@ window.RooHQ = window.RooHQ || {};
     var cat = Seed.CATEGORIES[c.category] || { label: c.category, icon: "•" };
     var ownerCol = colorVar(assignee);
 
+    var isCustom = c.templateKey.indexOf("custom-") === 0;
     var h = '<article class="chore ' + (done ? "done" : "") + (cat.rooCare ? " roo" : "") +
             '" style="--owner:' + ownerCol + '">';
+
+    if (isCustom) {
+      h += '<button class="edit-btn" data-act="edit" data-key="' + c.templateKey +
+           '" aria-label="Edit chore">✏️</button>';
+    }
 
     h += '<div class="chore-top">';
     h += '<button class="done-btn ' + (done ? "checked" : "") + '" data-act="done" data-id="' + c.instanceID +
@@ -193,6 +202,7 @@ window.RooHQ = window.RooHQ || {};
     els.weekLabelBtn.addEventListener("click", function () { currentMonday = Logic.mondayStart(new Date()); lastStamp = null; render(); });
     els.settingsBtn.addEventListener("click", openSettings);
     els.syncChip.addEventListener("click", openSettings);
+    els.addChoreBtn.addEventListener("click", function () { openChoreForm(null); });
     els.filterRow.addEventListener("click", function (e) {
       var b = e.target.closest("[data-filter]");
       if (!b) return;
@@ -227,6 +237,8 @@ window.RooHQ = window.RooHQ || {};
       if (c.kind === "name") return "Name updated";
       if (c.kind === "season") return "Mowing " + (c.value ? "in season" : "off");
       if (c.kind === "office") return "Office day " + (c.value ? "set" : "cleared");
+      if (c.kind === "customAdd") return "＋ New chore: “" + shorten(c.title || "chore") + "”";
+      if (c.kind === "customRemove") return "Chore removed";
       return "Updated";
     }).join(" · ");
   }
@@ -263,6 +275,8 @@ window.RooHQ = window.RooHQ || {};
       var di = +btn.getAttribute("data-di");
       var ymd = Logic.stamp(Logic.dateForDayIndex(currentMonday, di));
       Store.setOfficeDay(ymd, !Store.isOfficeDay(ymd));
+    } else if (act === "edit") {
+      openChoreForm(btn.getAttribute("data-key"));
     }
   }
 
@@ -354,6 +368,76 @@ window.RooHQ = window.RooHQ || {};
     chip.className = "sync-chip " + (status === "connected" ? "connected" : status === "connecting" ? "connecting" : status === "error" ? "error" : "");
     els.syncLabel.textContent = status === "connected" ? "Synced" : status === "connecting" ? "Syncing…" : status === "error" ? "Sync off" : "Local";
     if (!els.settingsSheet.hidden) refreshSyncUI();
+  }
+
+  // ---------- add / edit chores ----------
+  var editingKey = null;
+
+  var SCHEDULE_OPTIONS = [
+    ["daily", "Every day"],
+    ["weekday", "Weekdays (Mon–Fri)"],
+    ["monday", "Mondays"], ["tuesday", "Tuesdays"], ["wednesday", "Wednesdays"],
+    ["thursday", "Thursdays"], ["friday", "Fridays"], ["saturday", "Saturdays"], ["sunday", "Sundays"]
+  ];
+  var TIME_OPTIONS = [["anytime", "Anytime"], ["morning", "Morning"], ["midday", "Midday"], ["evening", "Evening"]];
+
+  function wireChoreForm() {
+    document.querySelectorAll('[data-close="chore"]').forEach(function (b) {
+      b.addEventListener("click", closeChoreForm);
+    });
+    els.saveChoreBtn.addEventListener("click", saveChore);
+    els.deleteChoreBtn.addEventListener("click", deleteChore);
+  }
+
+  function fillSelect(sel, options, selected) {
+    sel.innerHTML = options.map(function (o) {
+      return '<option value="' + o[0] + '"' + (o[0] === selected ? " selected" : "") + ">" + esc(o[1]) + "</option>";
+    }).join("");
+  }
+
+  function openChoreForm(key) {
+    editingKey = key || null;
+    var catOptions = Object.keys(Seed.CATEGORIES).map(function (k) { return [k, Seed.CATEGORIES[k].label]; });
+    var whoOptions = [["both", Store.name("both")], ["me", Store.name("me")], ["anna", Store.name("anna")]];
+
+    var tpl = editingKey ? Store.getCustomTemplate(editingKey) : null;
+    els.choreSheetTitle.textContent = editingKey ? "Edit chore" : "New chore";
+    els.choreTitle.value = tpl ? (tpl.title || "") : "";
+    els.choreNotes.value = tpl ? (tpl.notes || "") : "";
+    fillSelect(els.choreCategory, catOptions, tpl ? tpl.category : "cleaning");
+    fillSelect(els.choreSchedule, SCHEDULE_OPTIONS, tpl ? tpl.schedule : "daily");
+    fillSelect(els.choreTime, TIME_OPTIONS, tpl ? tpl.timeOfDay : "anytime");
+    fillSelect(els.choreWho, whoOptions, tpl ? tpl.defaultAssignee : "both");
+    els.deleteChoreBtn.hidden = !editingKey;
+
+    els.choreSheet.hidden = false;
+    setTimeout(function () { els.choreTitle.focus(); }, 50);
+  }
+
+  function closeChoreForm() { els.choreSheet.hidden = true; editingKey = null; }
+
+  function saveChore() {
+    var title = (els.choreTitle.value || "").trim();
+    if (!title) { els.choreTitle.focus(); toast("Give the chore a name."); return; }
+    var tpl = {
+      title: title,
+      category: els.choreCategory.value,
+      schedule: els.choreSchedule.value,
+      timeOfDay: els.choreTime.value,
+      defaultAssignee: els.choreWho.value,
+      notes: (els.choreNotes.value || "").trim() || null
+    };
+    var key = editingKey || ("custom-" + Date.now() + "-" + Math.floor(Math.random() * 1e6).toString(36));
+    Store.setCustomTemplate(key, tpl);
+    closeChoreForm();
+    toast(editingKey ? "Chore updated." : "Chore added.");
+  }
+
+  function deleteChore() {
+    if (!editingKey) return;
+    Store.deleteCustomTemplate(editingKey);
+    closeChoreForm();
+    toast("Chore removed.");
   }
 
   // ---------- backup ----------

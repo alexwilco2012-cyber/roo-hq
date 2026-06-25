@@ -68,12 +68,16 @@ window.RooHQ = window.RooHQ || {};
     return a.title < b.title ? -1 : (a.title > b.title ? 1 : 0);
   }
 
-  // Generate the base chores for the week starting on `monday`.
-  function generateWeek(monday) {
+  // Generate the chores for the week starting on `monday`.
+  // `customTemplates` (optional) are user-created chores that sync between phones.
+  function generateWeek(monday, customTemplates) {
     var p = parity(monday);
     var st = stamp(monday);
     var out = [];
-    Seed.TEMPLATES.forEach(function (tpl) {
+    var templates = (customTemplates && customTemplates.length)
+      ? Seed.TEMPLATES.concat(customTemplates)
+      : Seed.TEMPLATES;
+    templates.forEach(function (tpl) {
       var days = Seed.SCHEDULE_DAYS[tpl.schedule] || [];
       days.forEach(function (di) {
         out.push({
