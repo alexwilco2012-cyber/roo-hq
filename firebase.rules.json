@@ -1,0 +1,13 @@
+{
+  "//": "Roo HQ — Realtime Database security rules. Paste these into Firebase Console → Realtime Database → Rules → Publish.",
+  "//2": "Reads/writes are allowed only under a household whose code is at least 8 characters, so a long, private code keeps the plan to the two of you. The data is just chore assignments (no personal data), so this is appropriate for a family app.",
+  "//3": "Want it stricter? Turn on Anonymous Auth in Firebase and change the conditions to: \"auth != null && $code.length >= 8\".",
+  "rules": {
+    "households": {
+      "$code": {
+        ".read": "$code.length >= 8",
+        ".write": "$code.length >= 8"
+      }
+    }
+  }
+}
