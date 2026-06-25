@@ -286,7 +286,7 @@ window.RooHQ = window.RooHQ || {};
       b.addEventListener("click", closeSettings);
     });
 
-    els.meName.addEventListener("input", function () { els.meAvatar.textContent = initialOf(els.meName.value, "M"); });
+    els.meName.addEventListener("input", function () { els.meAvatar.textContent = initialOf(els.meName.value, "A"); });
     els.annaName.addEventListener("input", function () { els.annaAvatar.textContent = initialOf(els.annaName.value, "A"); });
     els.meName.addEventListener("change", function () { Store.setName("me", els.meName.value); });
     els.annaName.addEventListener("change", function () { Store.setName("anna", els.annaName.value); });
@@ -317,7 +317,7 @@ window.RooHQ = window.RooHQ || {};
   function openSettings() {
     els.meName.value = Store.name("me");
     els.annaName.value = Store.name("anna");
-    els.meAvatar.textContent = initialOf(Store.name("me"), "M");
+    els.meAvatar.textContent = initialOf(Store.name("me"), "A");
     els.annaAvatar.textContent = initialOf(Store.name("anna"), "A");
     els.seasonToggle.checked = Store.mowingInSeason();
     els.householdCode.value = Sync.currentCode() || "";

@@ -17,7 +17,7 @@ window.RooHQ = window.RooHQ || {};
   function emptyDoc() {
     return {
       settings: {
-        meName: { v: "Me", ts: 0 },
+        meName: { v: "Alex", ts: 0 },
         annaName: { v: "Anna", ts: 0 },
         mowingInSeason: { v: true, ts: 0 }
       },
@@ -33,8 +33,8 @@ window.RooHQ = window.RooHQ || {};
   function load() {
     try {
       var raw = localStorage.getItem(LS_KEY);
-      if (raw) doc = normalize(JSON.parse(raw));
-    } catch (e) { /* fall back to empty */ }
+      doc = raw ? normalize(JSON.parse(raw)) : emptyDoc();
+    } catch (e) { doc = emptyDoc(); }
     return doc;
   }
 
@@ -43,7 +43,11 @@ window.RooHQ = window.RooHQ || {};
     if (!d || typeof d !== "object") return base;
     if (d.settings) {
       ["meName", "annaName", "mowingInSeason"].forEach(function (k) {
-        if (d.settings[k] && typeof d.settings[k].ts === "number") base.settings[k] = d.settings[k];
+        // Only adopt explicitly-set values (ts > 0). A ts:0 entry is just the old default,
+        // so we fall back to the current code default — this lets default renames roll out.
+        if (d.settings[k] && typeof d.settings[k].ts === "number" && d.settings[k].ts > 0) {
+          base.settings[k] = d.settings[k];
+        }
       });
     }
     if (d.overrides && typeof d.overrides === "object") base.overrides = d.overrides;
@@ -67,7 +71,7 @@ window.RooHQ = window.RooHQ || {};
   // --- reads -------------------------------------------------------------
 
   function name(role) {
-    if (role === "me") return doc.settings.meName.v || "Me";
+    if (role === "me") return doc.settings.meName.v || "Alex";
     if (role === "anna") return doc.settings.annaName.v || "Anna";
     if (role === "both") return "Both";
     return role;
@@ -99,7 +103,7 @@ window.RooHQ = window.RooHQ || {};
   function setName(role, value) {
     var key = role === "me" ? "meName" : "annaName";
     var clean = (value || "").trim();
-    var field = { v: clean || (role === "me" ? "Me" : "Anna"), ts: now() };
+    var field = { v: clean || (role === "me" ? "Alex" : "Anna"), ts: now() };
     doc.settings[key] = field;
     save();
     var patches = [{ path: "settings/" + key, value: field }];

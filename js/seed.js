@@ -13,7 +13,7 @@ window.RooHQ = window.RooHQ || {};
 
   // Owner colour-coding (spec palette). Honey is the "Roo-care" accent.
   var ROLES = {
-    me:   { key: "me",   defaultName: "Me",   initial: "M", color: "#2E6E72" },
+    me:   { key: "me",   defaultName: "Alex", initial: "A", color: "#2E6E72" },
     anna: { key: "anna", defaultName: "Anna", initial: "A", color: "#C05A6E" },
     both: { key: "both", defaultName: "Both", initial: "B", color: "#7E5A86" }
   };

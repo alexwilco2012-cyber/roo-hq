@@ -1,5 +1,5 @@
 /* Roo HQ service worker — caches the app shell so it works offline. */
-var CACHE = "roohq-v3";
+var CACHE = "roohq-v4";
 var ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest",
   "./js/firebase-config.js", "./js/seed.js", "./js/logic.js", "./js/merge.js",
