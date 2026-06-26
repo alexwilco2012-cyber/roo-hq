@@ -23,7 +23,8 @@ window.RooHQ = window.RooHQ || {};
     garden:   { label: "Garden",   icon: "\u{1F33F}" },
     gym:      { label: "Gym",      icon: "\u{1F3CB}️" },
     bins:     { label: "Bins",     icon: "\u{1F5D1}️" },
-    mealprep: { label: "Meal prep",icon: "\u{1F955}" }
+    mealprep: { label: "Meal prep",icon: "\u{1F955}" },
+    social:   { label: "Social",   icon: "\u{1F942}" }
   };
 
   var TIME_ORDER = { morning: 0, midday: 1, evening: 2, anytime: 3 };
@@ -49,7 +50,14 @@ window.RooHQ = window.RooHQ || {};
     { key: 'walk-roo-in-the-evening', title: 'Walk Roo in the evening', category: 'dog', cadence: 'daily', dayIndex: 0, timeOfDay: 'evening', defaultAssignee: 'alternate', slot: 0, locked: false, seasonal: false, notes: 'Main evening walk; alternate between Alex and Anna.' },
     { key: 'play-with-roo', title: 'Play with Roo', category: 'dog', cadence: 'daily', dayIndex: 0, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: null },
     { key: 'pick-up-roo-s-poops', title: 'Pick up Roo\'s poops', category: 'dog', cadence: 'daily', dayIndex: 0, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: null },
-    { key: 'gym-workout-together', title: 'Gym — workout together', category: 'gym', cadence: 'weekly', dayIndex: 5, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: null },
+    { key: 'gym-workout-together', title: 'Gym — workout together', category: 'gym', cadence: 'weekly', dayIndex: 5, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: 'The joint Saturday session.' },
+    { key: 'gym-alex-mon', title: 'Gym — Alex', category: 'gym', cadence: 'weekly', dayIndex: 0, timeOfDay: 'evening', defaultAssignee: 'me', slot: 0, locked: false, seasonal: false, notes: 'Staggered with Anna so one walks Roo while the other trains.' },
+    { key: 'gym-alex-wed', title: 'Gym — Alex', category: 'gym', cadence: 'weekly', dayIndex: 2, timeOfDay: 'evening', defaultAssignee: 'me', slot: 0, locked: false, seasonal: false, notes: null },
+    { key: 'gym-alex-fri', title: 'Gym — Alex', category: 'gym', cadence: 'weekly', dayIndex: 4, timeOfDay: 'evening', defaultAssignee: 'me', slot: 0, locked: false, seasonal: false, notes: null },
+    { key: 'gym-anna-tue', title: 'Gym — Anna', category: 'gym', cadence: 'weekly', dayIndex: 1, timeOfDay: 'midday', defaultAssignee: 'anna', slot: 0, locked: false, seasonal: false, notes: 'Lunchtime session (works from home).' },
+    { key: 'gym-anna-thu', title: 'Gym — Anna', category: 'gym', cadence: 'weekly', dayIndex: 3, timeOfDay: 'midday', defaultAssignee: 'anna', slot: 0, locked: false, seasonal: false, notes: 'Lunchtime session.' },
+    { key: 'gym-anna-flex', title: 'Gym — Anna (flexible)', category: 'gym', cadence: 'weekly', dayIndex: 4, timeOfDay: 'anytime', defaultAssignee: 'anna', slot: 0, locked: false, seasonal: false, notes: 'Fourth session — move it to whenever suits.' },
+    { key: 'date-night', title: 'Date night', category: 'social', cadence: 'weekly', dayIndex: 6, timeOfDay: 'evening', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: 'Protect a shared evening — your overlapping rest day.' },
     { key: 'tidy-kitchen-top', title: 'Tidy kitchen top', category: 'kitchen', cadence: 'weekly', dayIndex: 0, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 0, locked: false, seasonal: false, notes: null },
     { key: 'clean-kitchen-top', title: 'Clean kitchen top', category: 'kitchen', cadence: 'weekly', dayIndex: 1, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 0, locked: false, seasonal: false, notes: null },
     { key: 'clean-kitchen-appliances', title: 'Clean kitchen appliances', category: 'kitchen', cadence: 'weekly', dayIndex: 2, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 0, locked: false, seasonal: false, notes: null },
@@ -118,7 +126,7 @@ window.RooHQ = window.RooHQ || {};
     { key: 'clean-wardrobe-doors', title: 'Clean wardrobe doors', category: 'cleaning', cadence: 'monthly', dayIndex: 1, timeOfDay: 'anytime', defaultAssignee: 'anna', slot: 0, locked: false, seasonal: false, notes: null },
     { key: 'clean-utility-freezer', title: 'Clean utility freezer', category: 'kitchen', cadence: 'monthly', dayIndex: 2, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 3, locked: false, seasonal: false, notes: null },
     { key: 'organise-utility-cupboard', title: 'Organise utility cupboard', category: 'cleaning', cadence: 'monthly', dayIndex: 3, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 1, locked: false, seasonal: false, notes: null },
-    { key: 'organise-two-activities-with-friends-spr', title: 'Organise two activities with friends spread over the month', category: 'cleaning', cadence: 'monthly', dayIndex: 6, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: 'Spread the two activities across the month.' },
+    { key: 'plan-activity-with-friends', title: 'Plan an activity with friends', category: 'social', cadence: 'monthly', dayIndex: 6, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 1, locked: false, seasonal: false, notes: 'Two activities with friends, spread over the month.' },
     { key: 'clean-front-door-and-entry', title: 'Clean front door and entry', category: 'cleaning', cadence: 'quarterly', dayIndex: 0, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 0, locked: false, seasonal: false, notes: 'Interior front door and entry area.' },
     { key: 'clean-back-door-and-entry', title: 'Clean back door and entry', category: 'cleaning', cadence: 'quarterly', dayIndex: 1, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 2, locked: false, seasonal: false, notes: null },
     { key: 'clean-conservatory-door-and-entry', title: 'Clean conservatory door and entry', category: 'cleaning', cadence: 'quarterly', dayIndex: 2, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 4, locked: false, seasonal: false, notes: null },
