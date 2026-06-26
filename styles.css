@@ -6,9 +6,9 @@
   --muted: rgba(40, 51, 48, 0.55);
   --faint: rgba(40, 51, 48, 0.10);
   --card: #FFFFFF;
-  --me: #2E6E72;
-  --anna: #C05A6E;
-  --both: #7E5A86;
+  --me: #2B4F8F;   /* Alex — dark blue */
+  --anna: #7A3F9E; /* Anna — purple */
+  --both: #2E6E72; /* Both — teal (kept distinct from Anna's purple) */
   --roo: #C98A1F;
   --shadow: 0 6px 16px rgba(40, 51, 48, 0.08);
   --radius: 18px;
@@ -21,9 +21,9 @@
     --muted: rgba(243, 239, 232, 0.55);
     --faint: rgba(243, 239, 232, 0.12);
     --card: #262320;
-    --me: #5FB0B5;
-    --anna: #E58A9B;
-    --both: #B795C0;
+    --me: #7AA6E0;   /* Alex — light blue (dark mode) */
+    --anna: #BC8BDD; /* Anna — light purple (dark mode) */
+    --both: #5FB0B5; /* Both — teal (dark mode) */
     --roo: #E6B24C;
     --shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   }

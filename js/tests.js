@@ -118,6 +118,18 @@
   assert("no generated seed instance is 'alternate' raw",
     !Logic.generateWeek(monday).some(function (c) { return c.assignee === "alternate"; }));
 
+  // rotation: a template with a rotation array varies owner across weeks
+  (function () {
+    var rotTpl = [{ key: "t-rot", title: "R", category: "cleaning", cadence: "weekly", dayIndex: 0, timeOfDay: "anytime", defaultAssignee: "me", rotation: ["me", "anna", "me", "anna"] }];
+    var seen = [];
+    for (var w = 0; w < 4; w++) {
+      var g = Logic.generateWeek(Logic.addWeeks(monday, w), rotTpl).filter(function (c) { return c.templateKey === "t-rot"; });
+      if (g.length) seen.push(g[0].assignee);
+    }
+    assert("rotation shows both owners across 4 weeks", seen.indexOf("me") >= 0 && seen.indexOf("anna") >= 0);
+    assert("rotation owners are concrete", seen.every(function (v) { return v === "me" || v === "anna"; }));
+  })();
+
   // ============ Sync (two-device simulation) ============
   var ID = "20240101|tue-ensuite|1";
 

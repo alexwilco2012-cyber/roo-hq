@@ -114,6 +114,11 @@ window.RooHQ = window.RooHQ || {};
       ? Seed.TEMPLATES.concat(customTemplates)
       : Seed.TEMPLATES;
     templates.forEach(function (tpl) {
+      // A 'rotation' array varies the owner week to week (mixes up who does what),
+      // while staying balanced. Falls back to defaultAssignee / alternate resolution.
+      var rotated = (tpl.rotation && tpl.rotation.length)
+        ? tpl.rotation[mod(W, tpl.rotation.length)]
+        : null;
       occurrenceDays(tpl, W).forEach(function (di) {
         out.push({
           templateKey: tpl.key,
@@ -121,7 +126,7 @@ window.RooHQ = window.RooHQ || {};
           category: tpl.category,
           timeOfDay: tpl.timeOfDay || "anytime",
           dayIndex: di,
-          assignee: resolveAssignee(tpl.defaultAssignee, di, p),
+          assignee: rotated || resolveAssignee(tpl.defaultAssignee, di, p),
           locked: !!tpl.locked,
           swappable: tpl.swappable !== false,
           seasonal: !!tpl.seasonal,
