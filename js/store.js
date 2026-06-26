@@ -23,7 +23,8 @@ window.RooHQ = window.RooHQ || {};
       },
       overrides: {},        // instanceID -> { assignee:{v,ts}, done:{v,by,at,ts} }
       officeDays: {},       // yyyymmdd -> { v:bool, ts }
-      customTemplates: {}   // key -> { v: templateObject | null (deleted), ts }
+      customTemplates: {},  // key -> { v: templateObject | null (deleted), ts }
+      templateEdits: {}     // seed key -> { v: { ...patched fields, deleted? }, ts }
     };
   }
 
@@ -53,6 +54,7 @@ window.RooHQ = window.RooHQ || {};
     if (d.overrides && typeof d.overrides === "object") base.overrides = d.overrides;
     if (d.officeDays && typeof d.officeDays === "object") base.officeDays = d.officeDays;
     if (d.customTemplates && typeof d.customTemplates === "object") base.customTemplates = d.customTemplates;
+    if (d.templateEdits && typeof d.templateEdits === "object") base.templateEdits = d.templateEdits;
     return base;
   }
 
@@ -176,6 +178,74 @@ window.RooHQ = window.RooHQ || {};
     emit("local", [{ path: "customTemplates/" + key, value: field }]);
   }
 
+  // --- editing / removing the BUILT-IN (seed) chores ---------------------
+  // An edit is a patch of changed fields (or { deleted:true }). All synced.
+
+  function getTemplateEdit(key) {
+    var f = doc.templateEdits[key];
+    return f && f.v ? f.v : null;
+  }
+
+  // The seed templates with edits applied and removed ones dropped.
+  function effectiveBaseTemplates() {
+    var Seed = RooHQ.Seed;
+    var out = [];
+    Seed.TEMPLATES.forEach(function (t) {
+      var e = getTemplateEdit(t.key);
+      if (e && e.deleted) return;                 // user removed it
+      if (!e) { out.push(t); return; }
+      var m = {};
+      for (var k in t) { if (t.hasOwnProperty(k)) m[k] = t[k]; }
+      ["title", "category", "cadence", "dayIndex", "timeOfDay", "defaultAssignee", "notes", "slot"].forEach(function (f) {
+        if (e[f] !== undefined) m[f] = e[f];
+      });
+      if (e.defaultAssignee !== undefined) m.rotation = undefined; // manual owner overrides the rotation
+      out.push(m);
+    });
+    return out;
+  }
+
+  // Effective template for a key (seed-with-edits or custom).
+  function getEffectiveTemplate(key) {
+    if (key.indexOf("custom-") === 0) return getCustomTemplate(key);
+    var arr = effectiveBaseTemplates();
+    for (var i = 0; i < arr.length; i++) { if (arr[i].key === key) return arr[i]; }
+    var s = RooHQ.Seed.TEMPLATES.filter(function (t) { return t.key === key; })[0];
+    return s || null;
+  }
+
+  // Merge `patch` into the stored edit for a seed key (cumulative).
+  function setTemplateEdit(key, patch) {
+    var prev = (doc.templateEdits[key] && doc.templateEdits[key].v) || {};
+    var merged = {};
+    for (var a in prev) { if (prev.hasOwnProperty(a)) merged[a] = prev[a]; }
+    for (var b in patch) { if (patch.hasOwnProperty(b)) merged[b] = patch[b]; }
+    var field = { v: merged, ts: now() };
+    doc.templateEdits[key] = field;
+    save();
+    emit("local", [{ path: "templateEdits/" + key, value: field }]);
+  }
+
+  function removeTemplate(key) {
+    setTemplateEdit(key, { deleted: true });
+  }
+
+  // Bring back any built-in chores that were removed (keeps other edits). Returns count.
+  function restoreRemovedTemplates() {
+    var n = 0;
+    Object.keys(doc.templateEdits).forEach(function (key) {
+      var f = doc.templateEdits[key];
+      if (f && f.v && f.v.deleted) {
+        var v = {};
+        for (var k in f.v) { if (f.v.hasOwnProperty(k) && k !== "deleted") v[k] = f.v[k]; }
+        doc.templateEdits[key] = { v: v, ts: now() };
+        n++;
+      }
+    });
+    if (n) { save(); emit("local", docAsPatches()); }
+    return n;
+  }
+
   // --- merge (remote) ----------------------------------------------------
 
   // Merge an incoming remote doc (delegates to the pure Merge engine).
@@ -228,6 +298,9 @@ window.RooHQ = window.RooHQ || {};
     Object.keys(doc.customTemplates).forEach(function (key) {
       patches.push({ path: "customTemplates/" + key, value: doc.customTemplates[key] });
     });
+    Object.keys(doc.templateEdits).forEach(function (key) {
+      patches.push({ path: "templateEdits/" + key, value: doc.templateEdits[key] });
+    });
     return patches;
   }
 
@@ -252,6 +325,12 @@ window.RooHQ = window.RooHQ || {};
     getCustomTemplate: getCustomTemplate,
     setCustomTemplate: setCustomTemplate,
     deleteCustomTemplate: deleteCustomTemplate,
+    getTemplateEdit: getTemplateEdit,
+    effectiveBaseTemplates: effectiveBaseTemplates,
+    getEffectiveTemplate: getEffectiveTemplate,
+    setTemplateEdit: setTemplateEdit,
+    removeTemplate: removeTemplate,
+    restoreRemovedTemplates: restoreRemovedTemplates,
     mergeRemote: mergeRemote,
     exportJSON: exportJSON,
     importJSON: importJSON,

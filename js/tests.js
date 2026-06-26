@@ -130,6 +130,22 @@
     assert("rotation owners are concrete", seen.every(function (v) { return v === "me" || v === "anna"; }));
   })();
 
+  // edit/remove built-ins: generateWeek honours a supplied (edited) base template list
+  (function () {
+    var base = [
+      { key: "b-keep", title: "Keep", category: "cleaning", cadence: "daily", dayIndex: 0, timeOfDay: "anytime", defaultAssignee: "me" },
+      { key: "b-edited", title: "Edited title", category: "cleaning", cadence: "weekly", dayIndex: 3, timeOfDay: "anytime", defaultAssignee: "anna" }
+      // a removed chore is simply absent from the base list
+    ];
+    var g = Logic.generateWeek(monday, null, base);
+    var keys = g.map(function (c) { return c.templateKey; });
+    assert("edited base: provided templates generate", keys.indexOf("b-keep") >= 0 && keys.indexOf("b-edited") >= 0);
+    assert("edited base: seed templates excluded when base supplied", keys.indexOf("make-bed") < 0);
+    var ed = g.filter(function (c) { return c.templateKey === "b-edited"; })[0];
+    eq("edited base: new title used", ed.title, "Edited title");
+    eq("edited base: new day used", ed.dayIndex, 3);
+  })();
+
   // ============ Sync (two-device simulation) ============
   var ID = "20240101|tue-ensuite|1";
 

@@ -64,6 +64,16 @@ window.RooHQ = window.RooHQ || {};
         }
       });
     }
+    if (remote.templateEdits) {
+      var lte = local.templateEdits || (local.templateEdits = {});
+      Object.keys(remote.templateEdits).forEach(function (key) {
+        if (mergeField(lte, key, remote.templateEdits[key])) {
+          var ef = lte[key];
+          var del = ef.v && ef.v.deleted;
+          changes.push({ kind: del ? "templateRemove" : "templateEdit", key: key, title: ef.v && ef.v.title });
+        }
+      });
+    }
     return changes;
   }
 
@@ -101,6 +111,14 @@ window.RooHQ = window.RooHQ || {};
       var lf = lct[key];
       var rf = rct[key];
       if (lf && (!rf || lf.ts > rf.ts)) up["customTemplates/" + key] = lf;
+    });
+
+    var rte = remote.templateEdits || {};
+    var lte = local.templateEdits || {};
+    Object.keys(lte).forEach(function (key) {
+      var lf = lte[key];
+      var rf = rte[key];
+      if (lf && (!rf || lf.ts > rf.ts)) up["templateEdits/" + key] = lf;
     });
 
     return up;

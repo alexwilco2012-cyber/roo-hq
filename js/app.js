@@ -67,7 +67,7 @@ window.RooHQ = window.RooHQ || {};
   function render() {
     renderFilters();
 
-    var chores = Logic.generateWeek(currentMonday, Store.getCustomTemplates()).filter(function (c) {
+    var chores = Logic.generateWeek(currentMonday, Store.getCustomTemplates(), Store.effectiveBaseTemplates()).filter(function (c) {
       if (Logic.isHiddenSeasonal(c, Store.mowingInSeason())) return false;
       return matchesFilter(Store.assigneeFor(c));
     });
@@ -153,14 +153,12 @@ window.RooHQ = window.RooHQ || {};
     var cat = Seed.CATEGORIES[c.category] || { label: c.category, icon: "•" };
     var ownerCol = colorVar(assignee);
 
-    var isCustom = c.templateKey.indexOf("custom-") === 0;
     var h = '<article class="chore ' + (done ? "done" : "") + (cat.rooCare ? " roo" : "") +
             '" style="--owner:' + ownerCol + '">';
 
-    if (isCustom) {
-      h += '<button class="edit-btn" data-act="edit" data-key="' + c.templateKey +
-           '" aria-label="Edit chore">✏️</button>';
-    }
+    // Every chore can be edited or removed.
+    h += '<button class="edit-btn" data-act="edit" data-key="' + c.templateKey +
+         '" aria-label="Edit chore">✏️</button>';
 
     h += '<div class="chore-top">';
     h += '<button class="done-btn ' + (done ? "checked" : "") + '" data-act="done" data-id="' + c.instanceID +
@@ -239,6 +237,8 @@ window.RooHQ = window.RooHQ || {};
       if (c.kind === "office") return "Office day " + (c.value ? "set" : "cleared");
       if (c.kind === "customAdd") return "＋ New chore: “" + shorten(c.title || "chore") + "”";
       if (c.kind === "customRemove") return "Chore removed";
+      if (c.kind === "templateEdit") return "A chore was edited";
+      if (c.kind === "templateRemove") return "A chore was removed";
       return "Updated";
     }).join(" · ");
   }
@@ -311,6 +311,11 @@ window.RooHQ = window.RooHQ || {};
         Store.reset();
         toast("Reset done.");
       }
+    });
+    var restoreBtn = $("restoreBtn");
+    if (restoreBtn) restoreBtn.addEventListener("click", function () {
+      var n = Store.restoreRemovedTemplates();
+      toast(n ? (n + " chore" + (n === 1 ? "" : "s") + " restored.") : "No removed chores to restore.");
     });
   }
 
@@ -408,7 +413,7 @@ window.RooHQ = window.RooHQ || {};
     var catOptions = Object.keys(Seed.CATEGORIES).map(function (k) { return [k, Seed.CATEGORIES[k].label]; });
     var whoOptions = [["both", Store.name("both")], ["me", Store.name("me")], ["anna", Store.name("anna")]];
 
-    var tpl = editingKey ? Store.getCustomTemplate(editingKey) : null;
+    var tpl = editingKey ? Store.getEffectiveTemplate(editingKey) : null;
     var defaultDay = String(Logic.dayIndexOf(new Date()));
     els.choreSheetTitle.textContent = editingKey ? "Edit chore" : "New chore";
     els.choreTitle.value = tpl ? (tpl.title || "") : "";
@@ -435,21 +440,39 @@ window.RooHQ = window.RooHQ || {};
     return 0;
   }
 
+  function isCustomKey(key) { return key && key.indexOf("custom-") === 0; }
+
   function saveChore() {
     var title = (els.choreTitle.value || "").trim();
     if (!title) { els.choreTitle.focus(); toast("Give the chore a name."); return; }
     var cadence = els.choreSchedule.value;
+    var dayIndex = parseInt(els.choreDay.value, 10) || 0;
+    var timeOfDay = els.choreTime.value;
+    var who = els.choreWho.value;
+    var notes = (els.choreNotes.value || "").trim() || null;
+
+    // Editing a BUILT-IN chore: store only the changed fields as a synced override.
+    if (editingKey && !isCustomKey(editingKey)) {
+      var eff = Store.getEffectiveTemplate(editingKey) || {};
+      var patch = {};
+      if (title !== eff.title) patch.title = title;
+      if (els.choreCategory.value !== eff.category) patch.category = els.choreCategory.value;
+      if (cadence !== eff.cadence) { patch.cadence = cadence; patch.slot = slotForCadence(cadence); }
+      if (dayIndex !== eff.dayIndex) patch.dayIndex = dayIndex;
+      if (timeOfDay !== (eff.timeOfDay || "anytime")) patch.timeOfDay = timeOfDay;
+      if (who !== eff.defaultAssignee) patch.defaultAssignee = who;
+      if (notes !== (eff.notes || null)) patch.notes = notes;
+      if (Object.keys(patch).length) Store.setTemplateEdit(editingKey, patch);
+      closeChoreForm();
+      toast("Chore updated.");
+      return;
+    }
+
+    // New chore, or editing a custom one: store as a full custom template.
     var tpl = {
-      title: title,
-      category: els.choreCategory.value,
-      cadence: cadence,
-      dayIndex: parseInt(els.choreDay.value, 10) || 0,
-      timeOfDay: els.choreTime.value,
-      defaultAssignee: els.choreWho.value,
-      slot: slotForCadence(cadence),  // anchor non-daily chores to the week you're viewing
-      notes: (els.choreNotes.value || "").trim() || null,
-      locked: false,
-      seasonal: false
+      title: title, category: els.choreCategory.value, cadence: cadence,
+      dayIndex: dayIndex, timeOfDay: timeOfDay, defaultAssignee: who,
+      slot: slotForCadence(cadence), notes: notes, locked: false, seasonal: false
     };
     var key = editingKey || ("custom-" + Date.now() + "-" + Math.floor(Math.random() * 1e6).toString(36));
     Store.setCustomTemplate(key, tpl);
@@ -459,7 +482,9 @@ window.RooHQ = window.RooHQ || {};
 
   function deleteChore() {
     if (!editingKey) return;
-    Store.deleteCustomTemplate(editingKey);
+    if (!confirm("Remove this chore from the plan? (Built-in chores can be brought back from Settings → Restore removed chores.)")) return;
+    if (isCustomKey(editingKey)) Store.deleteCustomTemplate(editingKey);
+    else Store.removeTemplate(editingKey);    // remove a built-in chore (synced)
     closeChoreForm();
     toast("Chore removed.");
   }

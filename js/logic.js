@@ -105,14 +105,15 @@ window.RooHQ = window.RooHQ || {};
 
   // Generate the chores for the week starting on `monday`.
   // `customTemplates` (optional) are user-created chores that sync between phones.
-  function generateWeek(monday, customTemplates) {
+  function generateWeek(monday, customTemplates, baseTemplates) {
     var W = weekIndex(monday);
     var p = mod(W, 2);
     var st = stamp(monday);
     var out = [];
+    var base = baseTemplates || Seed.TEMPLATES;   // seed (optionally with user edits/removals applied)
     var templates = (customTemplates && customTemplates.length)
-      ? Seed.TEMPLATES.concat(customTemplates)
-      : Seed.TEMPLATES;
+      ? base.concat(customTemplates)
+      : base;
     templates.forEach(function (tpl) {
       // A 'rotation' array varies the owner week to week (mixes up who does what),
       // while staying balanced. Falls back to defaultAssignee / alternate resolution.
