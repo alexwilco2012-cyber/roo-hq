@@ -41,39 +41,82 @@
   }
   function converge(a, b, cloud) { for (var i = 0; i < 3; i++) { syncRound(a, cloud); syncRound(b, cloud); } }
 
-  // ============ Logic ============
+  // ============ Logic (cadence engine) ============
   var monday = Logic.mondayStart(new Date(2024, 0, 1)); // 2024-01-01 is a Monday
   eq("known Monday has dayIndex 0", Logic.dayIndexOf(monday), 0);
 
-  var gen = Logic.generateWeek(monday);
-  var daily = gen.filter(function (c) { return c.templateKey === "roo-breakfast"; });
-  eq("daily chore appears 7×", daily.length, 7);
-  assert("daily owner is Me", daily.every(function (c) { return c.assignee === "me"; }));
+  // Test with synthetic templates passed as customTemplates, filtered by their unique keys
+  // so these tests don't depend on the actual seed content.
+  function genKeys(mon, tpls) {
+    var keys = tpls.map(function (t) { return t.key; });
+    return Logic.generateWeek(mon, tpls).filter(function (c) { return keys.indexOf(c.templateKey) >= 0; });
+  }
+  function countKey(mon, tpls, key) {
+    return genKeys(mon, tpls).filter(function (c) { return c.templateKey === key; }).length;
+  }
 
-  var lunch = gen.filter(function (c) { return c.templateKey === "roo-lunch-walk"; });
-  eq("weekday chore appears 5×", lunch.length, 5);
+  var T = [
+    { key: "t-daily",  title: "Daily",  category: "cleaning", cadence: "daily",       dayIndex: 0, timeOfDay: "anytime", defaultAssignee: "both" },
+    { key: "t-weekly", title: "Weekly", category: "cleaning", cadence: "weekly",      dayIndex: 2, timeOfDay: "anytime", defaultAssignee: "anna" },
+    { key: "t-edge",   title: "Edge",   category: "garden",   cadence: "fortnightly", dayIndex: 5, timeOfDay: "anytime", defaultAssignee: "anna", slot: 0, locked: true, seasonal: true, swappable: false }
+  ];
 
-  var ensuite = gen.filter(function (c) { return c.templateKey === "tue-ensuite"; });
-  eq("ensuite on Tuesday", ensuite[0].dayIndex, 1);
-  eq("ensuite owner Me", ensuite[0].assignee, "me");
+  eq("daily template -> 7 instances", countKey(monday, T, "t-daily"), 7);
+  var wk = genKeys(monday, T).filter(function (c) { return c.templateKey === "t-weekly"; });
+  eq("weekly template -> 1 instance", wk.length, 1);
+  eq("weekly lands on its day (Wed)", wk[0].dayIndex, 2);
+  eq("weekly owner = anna", wk[0].assignee, "anna");
 
-  var mow = gen.filter(function (c) { return c.templateKey === "mow-edge"; })[0];
-  eq("mow on Saturday", mow.dayIndex, 5);
-  eq("mow owner Anna", mow.assignee, "anna");
-  assert("mow locked & not swappable", mow.locked && !mow.swappable);
-  assert("canSwap(mow) is false", !Logic.canSwap(mow));
-  assert("canSwap(ensuite) is true", Logic.canSwap(ensuite[0]));
+  // fortnightly: appears in exactly one of two consecutive weeks
+  var fortThis = countKey(monday, T, "t-edge");
+  var fortNext = countKey(Logic.addWeeks(monday, 1), T, "t-edge");
+  eq("fortnightly appears once across two weeks", fortThis + fortNext, 1);
 
-  var expected = Seed.TEMPLATES.reduce(function (s, t) { return s + Seed.SCHEDULE_DAYS[t.schedule].length; }, 0);
-  eq("total weekly chores", gen.length, expected);
+  // monthly: once in any 4 consecutive weeks
+  var monthlyTpl = [{ key: "t-monthly", title: "M", category: "cleaning", cadence: "monthly", dayIndex: 3, timeOfDay: "anytime", defaultAssignee: "both", slot: 2 }];
+  var mHits = 0;
+  for (var mi = 0; mi < 4; mi++) { mHits += countKey(Logic.addWeeks(monday, mi), monthlyTpl, "t-monthly"); }
+  eq("monthly appears once in 4 weeks", mHits, 1);
 
-  eq("alt parity0 day0 → Me", Logic.resolveAssignee("alternate", 0, 0), "me");
-  eq("alt parity0 day1 → Anna", Logic.resolveAssignee("alternate", 1, 0), "anna");
-  eq("alt parity1 day0 → Anna (flips)", Logic.resolveAssignee("alternate", 0, 1), "anna");
-  assert("no generated instance is 'alternate'", !gen.some(function (c) { return c.assignee === "alternate"; }));
+  // quarterly: once in any 13 consecutive weeks
+  var qTpl = [{ key: "t-q", title: "Q", category: "garden", cadence: "quarterly", dayIndex: 5, timeOfDay: "anytime", defaultAssignee: "both", slot: 7 }];
+  var qHits = 0;
+  for (var qi = 0; qi < 13; qi++) { qHits += countKey(Logic.addWeeks(monday, qi), qTpl, "t-q"); }
+  eq("quarterly appears once in 13 weeks", qHits, 1);
 
-  assert("mow hidden out of season", Logic.isHiddenMow(mow, false));
-  assert("mow shown in season", !Logic.isHiddenMow(mow, true));
+  // locked + seasonal behaviour on the fortnightly edge task
+  var edge = null;
+  for (var ek = 0; ek < 2 && !edge; ek++) {
+    var arr = genKeys(Logic.addWeeks(monday, ek), T).filter(function (c) { return c.templateKey === "t-edge"; });
+    if (arr.length) edge = arr[0];
+  }
+  assert("edge instance exists in one of two weeks", !!edge);
+  assert("edge is locked", edge && edge.locked === true);
+  assert("canSwap(edge) is false", edge && Logic.canSwap(edge) === false);
+  assert("edge hidden out of season", edge && Logic.isHiddenSeasonal(edge, false) === true);
+  assert("edge shown in season", edge && Logic.isHiddenSeasonal(edge, true) === false);
+
+  // alternate resolution
+  eq("alt parity0 day0 -> me", Logic.resolveAssignee("alternate", 0, 0), "me");
+  eq("alt parity0 day1 -> anna", Logic.resolveAssignee("alternate", 1, 0), "anna");
+  eq("alt parity1 day0 -> anna (flips)", Logic.resolveAssignee("alternate", 0, 1), "anna");
+
+  // seed sanity: exactly one locked task, and it's Anna + garden + seasonal
+  var lockedSeen = {};
+  for (var sw = 0; sw < 4; sw++) {
+    Logic.generateWeek(Logic.addWeeks(monday, sw)).forEach(function (c) {
+      if (c.locked) lockedSeen[c.templateKey] = { assignee: c.assignee, category: c.category, seasonal: c.seasonal };
+    });
+  }
+  var lockedKeys = Object.keys(lockedSeen);
+  eq("seed has exactly one locked task", lockedKeys.length, 1);
+  assert("locked task is anna + garden + seasonal",
+    lockedKeys.length === 1 &&
+    lockedSeen[lockedKeys[0]].assignee === "anna" &&
+    lockedSeen[lockedKeys[0]].category === "garden" &&
+    lockedSeen[lockedKeys[0]].seasonal === true);
+  assert("no generated seed instance is 'alternate' raw",
+    !Logic.generateWeek(monday).some(function (c) { return c.assignee === "alternate"; }));
 
   // ============ Sync (two-device simulation) ============
   var ID = "20240101|tue-ensuite|1";

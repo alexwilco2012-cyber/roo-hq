@@ -59,7 +59,7 @@ window.RooHQ = window.RooHQ || {};
      "householdCode", "connectBtn", "disconnectBtn", "randomCodeBtn", "syncStatus", "firebaseHint",
      "exportBtn", "importBtn", "importFile", "resetBtn", "rulesList", "gymMe", "gymAnna", "toast",
      "addChoreBtn", "choreSheet", "choreSheetTitle", "choreTitle", "choreCategory", "choreSchedule",
-     "choreTime", "choreWho", "choreNotes", "saveChoreBtn", "deleteChoreBtn"
+     "choreDay", "choreDayRow", "choreTime", "choreWho", "choreNotes", "saveChoreBtn", "deleteChoreBtn"
     ].forEach(function (id) { els[id] = $(id); });
   }
 
@@ -68,7 +68,7 @@ window.RooHQ = window.RooHQ || {};
     renderFilters();
 
     var chores = Logic.generateWeek(currentMonday, Store.getCustomTemplates()).filter(function (c) {
-      if (Logic.isHiddenMow(c, Store.mowingInSeason())) return false;
+      if (Logic.isHiddenSeasonal(c, Store.mowingInSeason())) return false;
       return matchesFilter(Store.assigneeFor(c));
     });
     choreMap = {};
@@ -322,8 +322,8 @@ window.RooHQ = window.RooHQ || {};
     els.seasonToggle.checked = Store.mowingInSeason();
     els.householdCode.value = Sync.currentCode() || "";
     renderRules();
-    els.gymMe.textContent = "Gym — " + Store.name("me") + ": " + Seed.GYM.me.join(", ");
-    els.gymAnna.textContent = "Gym — " + Store.name("anna") + ": " + Seed.GYM.anna.join(", ");
+    els.gymMe.textContent = "🏋️ " + Seed.GYM.note;
+    els.gymAnna.textContent = "";
     refreshSyncUI();
     els.settingsSheet.hidden = false;
   }
@@ -334,8 +334,8 @@ window.RooHQ = window.RooHQ || {};
     var items = [
       ["🌿", r.grassAllergy],
       ["🍴", r.foodAndDishes],
-      ["🗑️", "Bins: " + r.binDay],
-      ["🐾", "Roo (" + Seed.DOG.name + ") is a golden retriever — she/her. Morning, midday (WFH) and a 45–60 min evening walk daily."]
+      ["🔄", r.sharing],
+      ["🐾", "Roo (" + Seed.DOG.name + ") is a golden retriever — she/her. Morning + evening walks, play and poop patrol every day."]
     ];
     els.rulesList.innerHTML = items.map(function (it) {
       return '<li><span class="ico">' + it[0] + "</span><span>" + esc(it[1]) + "</span></li>";
@@ -373,12 +373,15 @@ window.RooHQ = window.RooHQ || {};
   // ---------- add / edit chores ----------
   var editingKey = null;
 
-  var SCHEDULE_OPTIONS = [
+  var CADENCE_OPTIONS = [
     ["daily", "Every day"],
-    ["weekday", "Weekdays (Mon–Fri)"],
-    ["monday", "Mondays"], ["tuesday", "Tuesdays"], ["wednesday", "Wednesdays"],
-    ["thursday", "Thursdays"], ["friday", "Fridays"], ["saturday", "Saturdays"], ["sunday", "Sundays"]
+    ["weekly", "Weekly"],
+    ["fortnightly", "Every 2 weeks"],
+    ["monthly", "Monthly"],
+    ["quarterly", "Every 3 months"]
   ];
+  var DAY_OPTIONS = [["0", "Monday"], ["1", "Tuesday"], ["2", "Wednesday"], ["3", "Thursday"],
+                     ["4", "Friday"], ["5", "Saturday"], ["6", "Sunday"]];
   var TIME_OPTIONS = [["anytime", "Anytime"], ["morning", "Morning"], ["midday", "Midday"], ["evening", "Evening"]];
 
   function wireChoreForm() {
@@ -387,6 +390,11 @@ window.RooHQ = window.RooHQ || {};
     });
     els.saveChoreBtn.addEventListener("click", saveChore);
     els.deleteChoreBtn.addEventListener("click", deleteChore);
+    els.choreSchedule.addEventListener("change", updateDayRowVisibility);
+  }
+
+  function updateDayRowVisibility() {
+    els.choreDayRow.style.display = (els.choreSchedule.value === "daily") ? "none" : "";
   }
 
   function fillSelect(sel, options, selected) {
@@ -401,14 +409,17 @@ window.RooHQ = window.RooHQ || {};
     var whoOptions = [["both", Store.name("both")], ["me", Store.name("me")], ["anna", Store.name("anna")]];
 
     var tpl = editingKey ? Store.getCustomTemplate(editingKey) : null;
+    var defaultDay = String(Logic.dayIndexOf(new Date()));
     els.choreSheetTitle.textContent = editingKey ? "Edit chore" : "New chore";
     els.choreTitle.value = tpl ? (tpl.title || "") : "";
     els.choreNotes.value = tpl ? (tpl.notes || "") : "";
     fillSelect(els.choreCategory, catOptions, tpl ? tpl.category : "cleaning");
-    fillSelect(els.choreSchedule, SCHEDULE_OPTIONS, tpl ? tpl.schedule : "daily");
-    fillSelect(els.choreTime, TIME_OPTIONS, tpl ? tpl.timeOfDay : "anytime");
+    fillSelect(els.choreSchedule, CADENCE_OPTIONS, tpl ? (tpl.cadence || "weekly") : "weekly");
+    fillSelect(els.choreDay, DAY_OPTIONS, tpl && typeof tpl.dayIndex === "number" ? String(tpl.dayIndex) : defaultDay);
+    fillSelect(els.choreTime, TIME_OPTIONS, tpl ? (tpl.timeOfDay || "anytime") : "anytime");
     fillSelect(els.choreWho, whoOptions, tpl ? tpl.defaultAssignee : "both");
     els.deleteChoreBtn.hidden = !editingKey;
+    updateDayRowVisibility();
 
     els.choreSheet.hidden = false;
     setTimeout(function () { els.choreTitle.focus(); }, 50);
@@ -416,16 +427,29 @@ window.RooHQ = window.RooHQ || {};
 
   function closeChoreForm() { els.choreSheet.hidden = true; editingKey = null; }
 
+  function slotForCadence(cadence) {
+    var W = Logic.weekIndex(currentMonday);
+    if (cadence === "fortnightly") return Logic.mod(W, 2);
+    if (cadence === "monthly") return Logic.mod(W, 4);
+    if (cadence === "quarterly") return Logic.mod(W, 13);
+    return 0;
+  }
+
   function saveChore() {
     var title = (els.choreTitle.value || "").trim();
     if (!title) { els.choreTitle.focus(); toast("Give the chore a name."); return; }
+    var cadence = els.choreSchedule.value;
     var tpl = {
       title: title,
       category: els.choreCategory.value,
-      schedule: els.choreSchedule.value,
+      cadence: cadence,
+      dayIndex: parseInt(els.choreDay.value, 10) || 0,
       timeOfDay: els.choreTime.value,
       defaultAssignee: els.choreWho.value,
-      notes: (els.choreNotes.value || "").trim() || null
+      slot: slotForCadence(cadence),  // anchor non-daily chores to the week you're viewing
+      notes: (els.choreNotes.value || "").trim() || null,
+      locked: false,
+      seasonal: false
     };
     var key = editingKey || ("custom-" + Date.now() + "-" + Math.floor(Math.random() * 1e6).toString(36));
     Store.setCustomTemplate(key, tpl);
