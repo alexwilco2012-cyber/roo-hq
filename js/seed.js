@@ -137,7 +137,8 @@ window.RooHQ = window.RooHQ || {};
     { key: 'cook-meal-prep', title: 'Cook & portion the week\'s meal prep', category: 'mealprep', cadence: 'weekly', dayIndex: 6, timeOfDay: 'anytime', defaultAssignee: 'me', slot: 0, locked: false, seasonal: false, notes: 'The big weekly cook: batch and portion the week\'s meals.' },
     { key: 'plan-meals-food-shop', title: 'Plan meals + food shop', category: 'mealprep', cadence: 'weekly', dayIndex: 5, timeOfDay: 'anytime', defaultAssignee: 'anna', rotation: ['anna','anna','anna','anna'], slot: 0, locked: false, seasonal: false, notes: 'Plan the week\'s meals and do the food shop.' },
     { key: 'clean-car', title: 'Clean the car', category: 'cleaning', cadence: 'weekly', dayIndex: 5, timeOfDay: 'anytime', defaultAssignee: 'anna', rotation: ['anna','anna','anna','anna'], slot: 0, locked: false, seasonal: false, notes: 'Wash and vacuum the car.' },
-    { key: 'visit-parents', title: 'Visit the parents', category: 'social', cadence: 'fortnightly', dayIndex: 6, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: 'A regular catch-up; change the frequency to suit.' }
+    { key: 'visit-alex-parents', title: 'Visit Alex\'s parents', category: 'social', cadence: 'weekly', dayIndex: 6, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: null },
+    { key: 'visit-anna-parents', title: 'Visit Anna\'s parents', category: 'social', cadence: 'weekly', dayIndex: 5, timeOfDay: 'anytime', defaultAssignee: 'both', slot: 0, locked: false, seasonal: false, notes: null }
   ];
 
   var RULES = {
