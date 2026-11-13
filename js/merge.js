@@ -74,8 +74,44 @@ window.RooHQ = window.RooHQ || {};
         }
       });
     }
+    // --- game layer (newer clients only; older ones ignore these sections) ---
+    if (remote.rewards) {
+      var lrw = local.rewards || (local.rewards = {});
+      Object.keys(remote.rewards).forEach(function (key) {
+        if (mergeField(lrw, key, remote.rewards[key])) {
+          var rf = lrw[key];
+          changes.push({ kind: rf.v ? "rewardEdit" : "rewardRemove", key: key, title: rf.v && rf.v.title });
+        }
+      });
+    }
+    if (remote.teamGoals) {
+      var ltg = local.teamGoals || (local.teamGoals = {});
+      Object.keys(remote.teamGoals).forEach(function (wk) {
+        if (mergeField(ltg, wk, remote.teamGoals[wk])) {
+          changes.push({ kind: "teamGoal", week: wk, value: ltg[wk].v });
+        }
+      });
+    }
+    if (remote.redemptions) {
+      var lrd = local.redemptions || (local.redemptions = {});
+      Object.keys(remote.redemptions).forEach(function (id) {
+        var prev = lrd[id] && lrd[id].v;
+        if (mergeField(lrd, id, remote.redemptions[id])) {
+          var cur = lrd[id].v;
+          var kind = "redeemUpdate";
+          if (cur && !prev) kind = "redeem";
+          else if (!cur && prev) kind = "redeemCancel";
+          else if (cur && prev && !!cur.fulfilled !== !!prev.fulfilled) kind = "redeemFulfilled";
+          var rec = cur || prev || {};
+          changes.push({ kind: kind, id: id, who: rec.who, title: rec.title, value: !!(cur && cur.fulfilled) });
+        }
+      });
+    }
     return changes;
   }
+
+  // Map-of-fields sections pushed with the same newest-wins rule.
+  var FIELD_SECTIONS = ["customTemplates", "templateEdits", "rewards", "teamGoals", "redemptions"];
 
   // Fields where `local` is strictly newer than `remote` — i.e. what we should push up.
   // Returns an RTDB update map { "path/to/field": fieldObject }.
@@ -105,20 +141,14 @@ window.RooHQ = window.RooHQ || {};
       if (lf && (!rf || lf.ts > rf.ts)) up["officeDays/" + ymd] = lf;
     });
 
-    var rct = remote.customTemplates || {};
-    var lct = local.customTemplates || {};
-    Object.keys(lct).forEach(function (key) {
-      var lf = lct[key];
-      var rf = rct[key];
-      if (lf && (!rf || lf.ts > rf.ts)) up["customTemplates/" + key] = lf;
-    });
-
-    var rte = remote.templateEdits || {};
-    var lte = local.templateEdits || {};
-    Object.keys(lte).forEach(function (key) {
-      var lf = lte[key];
-      var rf = rte[key];
-      if (lf && (!rf || lf.ts > rf.ts)) up["templateEdits/" + key] = lf;
+    FIELD_SECTIONS.forEach(function (section) {
+      var rsec = remote[section] || {};
+      var lsec = local[section] || {};
+      Object.keys(lsec).forEach(function (key) {
+        var lf = lsec[key];
+        var rf = rsec[key];
+        if (lf && (!rf || lf.ts > rf.ts)) up[section + "/" + key] = lf;
+      });
     });
 
     return up;
@@ -127,6 +157,7 @@ window.RooHQ = window.RooHQ || {};
   RooHQ.Merge = {
     mergeField: mergeField,
     mergeDocInto: mergeDocInto,
-    newerFields: newerFields
+    newerFields: newerFields,
+    FIELD_SECTIONS: FIELD_SECTIONS
   };
 })(window.RooHQ);

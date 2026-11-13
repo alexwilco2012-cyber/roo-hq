@@ -1,8 +1,8 @@
 /* Roo HQ service worker — caches the app shell so it works offline. */
-var CACHE = "roohq-v11";
+var CACHE = "roohq-v14";
 var ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest",
-  "./js/firebase-config.js", "./js/seed.js", "./js/logic.js", "./js/merge.js",
+  "./js/firebase-config.js", "./js/seed.js", "./js/logic.js", "./js/game.js", "./js/merge.js",
   "./js/store.js", "./js/sync.js", "./js/app.js",
   "./icons/icon-192.png", "./icons/icon-512.png",
   "./icons/apple-touch-icon.png", "./icons/favicon-32.png"
@@ -10,7 +10,10 @@ var ASSETS = [
 
 self.addEventListener("install", function (e) {
   e.waitUntil(
-    caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }).then(function () { return self.skipWaiting(); })
+    caches.open(CACHE).then(function (c) {
+      // Bypass the browser's HTTP cache so a new version never mixes old and new files.
+      return c.addAll(ASSETS.map(function (u) { return new Request(u, { cache: "reload" }); }));
+    }).then(function () { return self.skipWaiting(); })
   );
 });
 

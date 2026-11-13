@@ -11,6 +11,7 @@ window.RooHQ = window.RooHQ || {};
   "use strict";
 
   var LS_KEY = "roohq.doc.v1";
+  var PHONE_KEY = "roohq.phoneOwner";   // local only, never synced: whose phone this is
 
   function now() { return Date.now(); }
 
@@ -24,7 +25,10 @@ window.RooHQ = window.RooHQ || {};
       overrides: {},        // instanceID -> { assignee:{v,ts}, done:{v,by,at,ts} }
       officeDays: {},       // yyyymmdd -> { v:bool, ts }
       customTemplates: {},  // key -> { v: templateObject | null (deleted), ts }
-      templateEdits: {}     // seed key -> { v: { ...patched fields, deleted? }, ts }
+      templateEdits: {},    // seed key -> { v: { ...patched fields, deleted? }, ts }
+      rewards: {},          // reward key -> { v: { kind, title, cost? } | null (deleted), ts }
+      teamGoals: {},        // week stamp (Monday yyyymmdd) -> { v: team reward key, ts }
+      redemptions: {}       // id -> { v: { who, key, title, cost, at, fulfilled, fulfilledAt } | null, ts }
     };
   }
 
@@ -55,6 +59,9 @@ window.RooHQ = window.RooHQ || {};
     if (d.officeDays && typeof d.officeDays === "object") base.officeDays = d.officeDays;
     if (d.customTemplates && typeof d.customTemplates === "object") base.customTemplates = d.customTemplates;
     if (d.templateEdits && typeof d.templateEdits === "object") base.templateEdits = d.templateEdits;
+    ["rewards", "teamGoals", "redemptions"].forEach(function (k) {
+      if (d[k] && typeof d[k] === "object") base[k] = d[k];
+    });
     return base;
   }
 
@@ -87,9 +94,15 @@ window.RooHQ = window.RooHQ || {};
     return chore.assignee;
   }
 
+  // True when someone swapped this instance by hand (that beats automatic rules like office days).
+  function hasAssigneeOverride(instanceID) {
+    var o = doc.overrides[instanceID];
+    return !!(o && o.assignee && typeof o.assignee.v === "string");
+  }
+
   function doneInfo(instanceID) {
     var o = doc.overrides[instanceID];
-    if (o && o.done) return { done: !!o.done.v, by: o.done.by || null, at: o.done.at || null };
+    if (o && o.done) return { done: !!o.done.v, by: o.done.by || null, at: o.done.at || null, pts: o.done.pts };
     return { done: false, by: null, at: null };
   }
 
@@ -126,9 +139,15 @@ window.RooHQ = window.RooHQ || {};
     emit("local", [{ path: "overrides/" + instanceID + "/assignee", value: o.assignee }]);
   }
 
-  function setDone(instanceID, done, by) {
+  // `extra` (optional, when ticking): { pts, owner } — the points earned and who the chore was
+  // assigned to at the time, so lifetime totals don't depend on later template edits.
+  function setDone(instanceID, done, by, extra) {
     var o = doc.overrides[instanceID] || (doc.overrides[instanceID] = {});
     o.done = { v: !!done, by: done ? (by || null) : null, at: done ? now() : null, ts: now() };
+    if (done && extra) {
+      if (typeof extra.pts === "number") o.done.pts = extra.pts;
+      if (extra.owner) o.done.owner = extra.owner;
+    }
     save();
     emit("local", [{ path: "overrides/" + instanceID + "/done", value: o.done }]);
   }
@@ -196,10 +215,12 @@ window.RooHQ = window.RooHQ || {};
       if (!e) { out.push(t); return; }
       var m = {};
       for (var k in t) { if (t.hasOwnProperty(k)) m[k] = t[k]; }
-      ["title", "category", "cadence", "dayIndex", "timeOfDay", "defaultAssignee", "notes", "slot"].forEach(function (f) {
+      ["title", "category", "cadence", "dayIndex", "timeOfDay", "defaultAssignee", "notes", "slot",
+       "minutes", "core", "time", "days"].forEach(function (f) {
         if (e[f] !== undefined) m[f] = e[f];
       });
       if (e.defaultAssignee !== undefined) m.rotation = undefined; // manual owner overrides the rotation
+      if (e.title !== undefined) m.binColour = false;              // a typed title replaces the bin colour title
       out.push(m);
     });
     return out;
@@ -244,6 +265,84 @@ window.RooHQ = window.RooHQ || {};
     });
     if (n) { save(); emit("local", docAsPatches()); }
     return n;
+  }
+
+  // --- this phone (local only) -------------------------------------------
+
+  function phoneRole() {
+    try {
+      var r = localStorage.getItem(PHONE_KEY);
+      return (r === "me" || r === "anna") ? r : null;
+    } catch (e) { return null; }
+  }
+
+  function setPhoneRole(role) {
+    try { localStorage.setItem(PHONE_KEY, role); } catch (e) {}
+    emit("phone", []);
+  }
+
+  // --- rewards (synced) ---------------------------------------------------
+
+  function getRewards() {
+    return RooHQ.Game.effectiveRewards(RooHQ.Seed.REWARDS, doc.rewards);
+  }
+
+  function setReward(key, reward) {
+    var field = { v: reward, ts: now() };
+    doc.rewards[key] = field;
+    save();
+    emit("local", [{ path: "rewards/" + key, value: field }]);
+  }
+
+  function deleteReward(key) {
+    var field = { v: null, ts: now() };          // tombstone so the delete syncs
+    doc.rewards[key] = field;
+    save();
+    emit("local", [{ path: "rewards/" + key, value: field }]);
+  }
+
+  function teamGoalKey(weekStamp) {
+    var f = doc.teamGoals[weekStamp];
+    return f && f.v ? f.v : null;
+  }
+
+  function setTeamGoal(weekStamp, key) {
+    var field = { v: key, ts: now() };
+    doc.teamGoals[weekStamp] = field;
+    save();
+    emit("local", [{ path: "teamGoals/" + weekStamp, value: field }]);
+  }
+
+  function getRedemptions() {
+    return RooHQ.Game.redemptionList(doc.redemptions);
+  }
+
+  function writeRedemption(id, rec) {
+    var field = { v: rec, ts: now() };
+    doc.redemptions[id] = field;
+    save();
+    emit("local", [{ path: "redemptions/" + id, value: field }]);
+  }
+
+  function redeem(who, reward) {
+    var id = "r-" + now() + "-" + Math.floor(Math.random() * 1e6).toString(36);
+    var rec = { who: who, key: reward.key, title: reward.title, cost: reward.cost, at: now(), fulfilled: false };
+    writeRedemption(id, rec);
+    return id;
+  }
+
+  function setRedemptionFulfilled(id, on) {
+    var f = doc.redemptions[id];
+    if (!f || !f.v) return;
+    var rec = {};
+    for (var k in f.v) { if (f.v.hasOwnProperty(k)) rec[k] = f.v[k]; }
+    rec.fulfilled = !!on;
+    rec.fulfilledAt = on ? now() : null;
+    writeRedemption(id, rec);
+  }
+
+  function cancelRedemption(id) {
+    writeRedemption(id, null);                   // tombstone: the points come back
   }
 
   // --- merge (remote) ----------------------------------------------------
@@ -301,6 +400,11 @@ window.RooHQ = window.RooHQ || {};
     Object.keys(doc.templateEdits).forEach(function (key) {
       patches.push({ path: "templateEdits/" + key, value: doc.templateEdits[key] });
     });
+    ["rewards", "teamGoals", "redemptions"].forEach(function (section) {
+      Object.keys(doc[section] || {}).forEach(function (key) {
+        patches.push({ path: section + "/" + key, value: doc[section][key] });
+      });
+    });
     return patches;
   }
 
@@ -313,6 +417,7 @@ window.RooHQ = window.RooHQ || {};
     name: name,
     mowingInSeason: mowingInSeason,
     assigneeFor: assigneeFor,
+    hasAssigneeOverride: hasAssigneeOverride,
     isDone: isDone,
     doneInfo: doneInfo,
     isOfficeDay: isOfficeDay,
@@ -337,6 +442,18 @@ window.RooHQ = window.RooHQ || {};
     reset: reset,
     docAsPatches: docAsPatches,
     getDoc: getDoc,
-    onChange: onChange
+    onChange: onChange,
+    normalize: normalize,
+    phoneRole: phoneRole,
+    setPhoneRole: setPhoneRole,
+    getRewards: getRewards,
+    setReward: setReward,
+    deleteReward: deleteReward,
+    teamGoalKey: teamGoalKey,
+    setTeamGoal: setTeamGoal,
+    getRedemptions: getRedemptions,
+    redeem: redeem,
+    setRedemptionFulfilled: setRedemptionFulfilled,
+    cancelRedemption: cancelRedemption
   };
 })(window.RooHQ);

@@ -19,7 +19,9 @@ No build step, no app store, no Xcode. Just static files + a free Firebase proje
 - **One-tap swapping** — tap **Me / Anna / Both** on any chore to reassign it for that week.
 - **Mowing is locked to Anna** (Me's grass allergy) — shown with a 🔒 and can't be swapped.
 - **Tick to complete**, with per-day and per-week progress that **resets each week**.
-- **Office-day flag** (💼) — mark Anna's Aberdeen day; it shows the short-walk + dog-walker reminder.
+- **Office-day flag** (💼) — mark a day Anna is at the office (08:00 to 18:00). Monday to Thursday it
+  reminds you Roo is with Anna's mum (or she comes over); on Friday Alex is home, so Roo is covered.
+  Any of Anna's Roo-care before 18:00 that day moves to Alex at 17:30, unless one of you swapped it by hand.
 - **Seasonal mow toggle** — hide the mow out of season; it stops counting toward progress.
 - **Filter** — All / Me / Anna chips to see just your chores (Both counts for each of you).
 - **Live sync** between two phones via a shared **household code** (Firebase), with a little
@@ -28,6 +30,47 @@ No build step, no app store, no Xcode. Just static files + a free Firebase proje
 - **Backup** — export/import the whole plan as a JSON file.
 
 Everything is local-first: it works fully on one phone straight away. Sync is layered on top.
+
+## The game
+
+- **Core and bonus.** Each day shows a short **core** list first (Roo's walks and meals, the kitchen
+  reset, laundry, cooking and the food shop, the bin, the Sunday check-in), at most 6 each a day.
+  A walk and meal done back to back by the same person is one card; the kitchen reset and the laundry
+  are one card each. Everything else sits in a collapsed **Bonus jobs** section with the points on
+  offer. Mark any chore as core in its edit form.
+- **Points.** Every chore has a time estimate. Points = minutes ÷ 5, rounded, at least 1 (shown as
+  "+6" on the card). Points go to whoever ticks it; a "Both" chore pays both of you. The points are
+  saved with the tick, so later edits don't change history. Unticking takes them back.
+- **This phone belongs to.** On first open the app asks whose phone it is (Settings to change). That
+  person gets the credit for ticks from this phone. Only stored on the phone, never synced.
+- **Scoreboard** (top of the screen): this week's points, streak and level for each of you, plus a
+  team bar. **Streak** = days in a row with every one of your core jobs done (today counts once it's
+  complete and never breaks the run while it's in progress). **Level** = one level per 250 lifetime
+  points. The **team bar** fills with both your points against the total points of the week's core jobs;
+  when it's full the week's team reward is unlocked.
+- **Rewards** (tap the scoreboard): pick the team reward you're playing for this week, spend your own
+  points on personal rewards (with a confirm step), see what's been redeemed and mark rewards as given.
+  The other phone gets a note, e.g. "Alex redeemed: Pick the film". Rewards can be renamed, re-priced,
+  removed or added, and all of it syncs.
+- **Roo's day**: a line at the top showing how many of today's walks and meals are done.
+
+## The routine
+
+- **Roo**: two 30-minute walks and two meals a day. Monday to Thursday Alex walks her at 06:00 and gives
+  breakfast. Evenings: Alex walks her at 17:30 then gives dinner on Monday and Wednesday; Anna does the
+  same at 17:00 on Tuesday and Thursday. Friday: Alex walks her at 06:45 and gives breakfast and dinner
+  (17:30); Anna walks her at 18:15. Weekends: a morning out together at 08:30 (an hour or more), an
+  evening walk together (17:30 Saturday, 17:45 Sunday), Anna does breakfast at 08:00 and Alex dinner at 17:00.
+- **Kitchen reset** (Alex, daily) and **laundry** (one card a day: Monday to Thursday alternates, Alex
+  has two of those days each week; Friday to Sunday is Anna's).
+- **Bonus chores** rotate week to week where that keeps the weekly time within about 5% on average while grass jobs are in season (about 7% when they are switched off).
+- **Bins**: collected every Monday, one colour a week: black (general waste), blue (cardboard and paper),
+  orange (plastic and cans), starting with black on 16 November 2026. The Sunday 19:00 chore names the
+  right bin.
+- **Sunday 17:30 week check-in** (both): Anna's office days, tell Anna's mum, meals.
+- **Alex's gym**: home gym Monday, Wednesday and Friday at 05:30 from 16 November 2026.
+- Chores can have a clock time (shown on the card and used for order) and a set of weekdays, so one
+  chore can run Monday to Thursday only.
 
 ---
 
@@ -104,8 +147,10 @@ roo-hq-web/
 ├─ serve.ps1               optional local static server (no Node/Python needed)
 ├─ icons/                  paw app icons
 └─ js/
-   ├─ seed.js              the plan: 34 chore templates, people, rules (matches the iOS app)
-   ├─ logic.js             week maths, generation, "alternate" resolution, swap rules
+   ├─ seed.js              the plan: chore templates with minutes/core/time/days, rewards, bins, rules
+   ├─ logic.js             week maths, generation, days/times, bin colours, swap rules
+   ├─ game.js              points, credit, streaks, team target, levels, rewards (pure functions)
+   ├─ merge.js             the sync merge engine (pure, newest-wins per field)
    ├─ store.js             local-first state — per-chore overrides + settings, timestamped
    ├─ sync.js              Firebase Realtime Database sync (household code, merge-by-timestamp)
    ├─ firebase-config.js   ← paste your Firebase config here
@@ -113,15 +158,17 @@ roo-hq-web/
 ```
 
 **The clever bit:** both phones generate the same base plan from the seed, so we only ever sync the
-*differences* — who a chore is assigned to, whether it's done, names, season, office days — each
-keyed by a stable id and timestamped. Tiny payloads, clean merges, no accounts needed.
+*differences* — who a chore is assigned to, whether it's done, names, season, office days, rewards,
+the week's team reward and redemptions — each keyed by a stable id and timestamped. Tiny payloads,
+clean merges, no accounts needed. Older copies of the app simply ignore the game sections.
 
 ## Tests
 
 Open **`tests.html`** in any browser. It runs the logic tests (week generation, owners, the locked
-mow, "alternate", seasonal hide) **and a two-device sync simulation** — two phones plus a shared
+mow, "alternate", seasonal hide, days and times, bin colours, points, credit, streaks, team target,
+rewards and balances) **and a two-device sync simulation** — two phones plus a shared
 "cloud" exchanging diffs — covering propagation, concurrent edits, same-field conflicts, offline
-edits and no-clobber. All green means the sync engine is correct before you even wire up Firebase.
+edits, no-clobber, and the reward/team-goal/redemption sections with deletes and conflicts. All green means the sync engine is correct before you even wire up Firebase.
 
 ---
 

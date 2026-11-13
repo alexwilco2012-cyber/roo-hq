@@ -28,6 +28,12 @@ window.RooHQ = window.RooHQ || {};
     return "" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
   }
 
+  // yyyymmdd -> local midnight Date.
+  function dateFromStamp(ymd) {
+    ymd = String(ymd);
+    return new Date(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8));
+  }
+
   // Whole days between two local dates, via UTC midnights so DST never skews it.
   function daysBetween(a, b) {
     var ua = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
@@ -67,17 +73,59 @@ window.RooHQ = window.RooHQ || {};
     return ((dayIndex + parityValue) % 2 === 0) ? "me" : "anna";
   }
 
+  // A clock time "HH:MM", or null if missing or invalid.
+  function validTime(t) {
+    return (typeof t === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(t)) ? t : null;
+  }
+
+  // A template's optional "days" list (0=Mon…6=Sun), cleaned up; null when absent or empty.
+  // Tolerates the object form Firebase can hand back for arrays.
+  function validDays(days) {
+    if (!days || typeof days !== "object") return null;
+    var list = Array.isArray(days) ? days : Object.keys(days).map(function (k) { return days[k]; });
+    var seen = {}, out = [];
+    list.forEach(function (d) {
+      d = Number(d);
+      if (d >= 0 && d <= 6 && Math.floor(d) === d && !seen[d]) { seen[d] = true; out.push(d); }
+    });
+    out.sort(function (a, b) { return a - b; });
+    return out.length ? out : null;
+  }
+
+  // Order within a week: by day, then timed chores first (by time), then time of day, then title.
   function ordering(a, b) {
     if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+    var ca = validTime(a.time), cb = validTime(b.time);
+    if (!!ca !== !!cb) return ca ? -1 : 1;
+    if (ca && ca !== cb) return ca < cb ? -1 : 1;
     var ta = Seed.TIME_ORDER[a.timeOfDay], tb = Seed.TIME_ORDER[b.timeOfDay];
+    if (ta === undefined) ta = 3;
+    if (tb === undefined) tb = 3;
     if (ta !== tb) return ta - tb;
     return a.title < b.title ? -1 : (a.title > b.title ? 1 : 0);
+  }
+
+  // ---- bins: collected every Monday, colours in a fixed rotation (see Seed.BINS) ----
+
+  // The bin collected in the week of `date` (its Monday collection).
+  function binFor(date) {
+    var weeks = Math.floor(daysBetween(dateFromStamp(Seed.BIN_REFERENCE_MONDAY), mondayStart(date)) / 7);
+    return Seed.BINS[mod(weeks, Seed.BINS.length)];
+  }
+
+  // Title for the "bin out" chore on `choreDate`: names the colour of the next Monday collection.
+  function binTitle(choreDate) {
+    var next = new Date(choreDate.getFullYear(), choreDate.getMonth(), choreDate.getDate());
+    next.setDate(next.getDate() + (7 - dayIndexOf(next)));
+    var b = binFor(next);
+    return "Put the " + b.label + " bin out (" + b.type + ")";
   }
 
   // Which days (0=Mon…6=Sun) a template lands on in the week with index `W`.
   // Cadences: daily (every day), weekly (its day every week), fortnightly (its day every other
   // week), monthly (one week in four), quarterly (one week in thirteen). `slot` picks which of
-  // those weeks. Falls back to the old `schedule` field for any legacy custom chores.
+  // those weeks. An optional `days` list picks the weekdays instead of the cadence default,
+  // e.g. Monday to Thursday only. Falls back to the old `schedule` field for legacy custom chores.
   function occurrenceDays(tpl, W) {
     var c = tpl.cadence;
     if (!c && tpl.schedule) {
@@ -92,15 +140,21 @@ window.RooHQ = window.RooHQ || {};
     }
     var di = (typeof tpl.dayIndex === "number") ? tpl.dayIndex : 5;
     var slot = tpl.slot || 0;
+    var days = validDays(tpl.days);
     switch (c) {
-      case "daily":       return [0, 1, 2, 3, 4, 5, 6];
-      case "weekday":     return [0, 1, 2, 3, 4];
-      case "weekly":      return [di];
-      case "fortnightly": return (mod(W, 2) === mod(slot, 2)) ? [di] : [];
-      case "monthly":     return (mod(W, 4) === mod(slot, 4)) ? [di] : [];
-      case "quarterly":   return (mod(W, 13) === mod(slot, 13)) ? [di] : [];
+      case "daily":       return days || [0, 1, 2, 3, 4, 5, 6];
+      case "weekday":     return days || [0, 1, 2, 3, 4];
+      case "weekly":      return days || [di];
+      case "fortnightly": return (mod(W, 2) === mod(slot, 2)) ? (days || [di]) : [];
+      case "monthly":     return (mod(W, 4) === mod(slot, 4)) ? (days || [di]) : [];
+      case "quarterly":   return (mod(W, 13) === mod(slot, 13)) ? (days || [di]) : [];
       default:            return [];
     }
+  }
+
+  function minutesOf(tpl) {
+    var m = tpl && Number(tpl.minutes);
+    return (m > 0) ? m : Seed.DEFAULT_MINUTES;
   }
 
   // Generate the chores for the week starting on `monday`.
@@ -121,11 +175,17 @@ window.RooHQ = window.RooHQ || {};
         ? tpl.rotation[mod(W, tpl.rotation.length)]
         : null;
       occurrenceDays(tpl, W).forEach(function (di) {
+        var date = dateForDayIndex(monday, di);
+        // `startsOn` (yyyymmdd) holds a chore back until that date.
+        if (tpl.startsOn && stamp(date) < String(tpl.startsOn)) return;
         out.push({
           templateKey: tpl.key,
-          title: tpl.title,
+          title: tpl.binColour ? binTitle(date) : tpl.title,
           category: tpl.category,
           timeOfDay: tpl.timeOfDay || "anytime",
+          time: validTime(tpl.time),
+          minutes: minutesOf(tpl),
+          core: !!tpl.core,
           dayIndex: di,
           assignee: rotated || resolveAssignee(tpl.defaultAssignee, di, p),
           locked: !!tpl.locked,
@@ -138,6 +198,38 @@ window.RooHQ = window.RooHQ || {};
     });
     out.sort(ordering);
     return out;
+  }
+
+  // ---- Anna's office days (she is out 08:00 to 18:00) ----
+  var OFFICE_COVER_BEFORE = "18:00";   // her Roo-care timed before this moves...
+  var OFFICE_COVER_TIME = "17:30";     // ...to Alex, at this time
+
+  // One generated chore on a given day: if it is Anna's office day, the chore is Roo-care, assigned
+  // to Anna, timed before 18:00, and nobody swapped this instance by hand, it becomes Alex's at
+  // 17:30. Returns the chore unchanged or an adjusted copy (flagged `officeCover`).
+  function applyOfficeDay(chore, isOfficeDay, manuallySwapped) {
+    if (!isOfficeDay || manuallySwapped) return chore;
+    var cat = Seed.CATEGORIES[chore.category];
+    if (!cat || !cat.rooCare || chore.assignee !== "anna") return chore;
+    var t = validTime(chore.time);
+    if (!t || t >= OFFICE_COVER_BEFORE) return chore;
+    var c = {};
+    for (var k in chore) { if (Object.prototype.hasOwnProperty.call(chore, k)) c[k] = chore[k]; }
+    c.assignee = "me";
+    c.time = OFFICE_COVER_TIME;
+    c.officeCover = true;
+    return c;
+  }
+
+  // The same rule over a generated week.
+  //  isOfficeDay(yyyymmdd) -> bool; isSwapped(instanceID) -> bool (a manual owner override exists)
+  function applyOfficeDays(chores, monday, isOfficeDay, isSwapped) {
+    var flags = {};
+    // Office days are Monday to Friday only; a flag on a weekend date is ignored.
+    for (var di = 0; di < 7; di++) flags[di] = di <= 4 && !!isOfficeDay(stamp(dateForDayIndex(monday, di)));
+    return chores.map(function (c) {
+      return flags[c.dayIndex] ? applyOfficeDay(c, true, !!isSwapped(c.instanceID)) : c;
+    });
   }
 
   function canSwap(chore) {
@@ -167,14 +259,24 @@ window.RooHQ = window.RooHQ || {};
     dayIndexOf: dayIndexOf,
     mondayStart: mondayStart,
     stamp: stamp,
+    dateFromStamp: dateFromStamp,
+    daysBetween: daysBetween,
     parity: parity,
     weekIndex: weekIndex,
     mod: mod,
     dateForDayIndex: dateForDayIndex,
     addWeeks: addWeeks,
     resolveAssignee: resolveAssignee,
+    validTime: validTime,
+    validDays: validDays,
+    ordering: ordering,
+    binFor: binFor,
+    binTitle: binTitle,
     occurrenceDays: occurrenceDays,
+    minutesOf: minutesOf,
     generateWeek: generateWeek,
+    applyOfficeDay: applyOfficeDay,
+    applyOfficeDays: applyOfficeDays,
     canSwap: canSwap,
     lockReason: lockReason,
     isHiddenSeasonal: isHiddenSeasonal,
