@@ -185,10 +185,9 @@ window.RooHQ = window.RooHQ || {};
     { key: "p-pick-film",    kind: "personal", title: "Pick the film", cost: 40 },
     { key: "p-morning-out",  kind: "personal", title: "You choose the weekend morning out with Roo", cost: 50 },
     { key: "p-takeaway",     kind: "personal", title: "Choose the takeaway", cost: 60 },
-    { key: "p-skip-chore",   kind: "personal", title: "Skip one chore, the other does it", cost: 80 },
-    { key: "p-lie-in",       kind: "personal", title: "Lie-in while the other does Roo's morning walk", cost: 100 },
-    { key: "p-breakfast",    kind: "personal", title: "Breakfast made for you", cost: 120 },
-    { key: "p-gaming",       kind: "personal", title: "A guilt-free gaming evening", cost: 150 }
+    { key: "p-coffee",       kind: "personal", title: "A coffee and pastry out, your treat to yourself", cost: 60 },
+    { key: "p-weekend",      kind: "personal", title: "Choose the weekend activity", cost: 80 },
+    { key: "p-date-night",   kind: "personal", title: "Choose the next date night", cost: 100 }
   ];
 
   // Minutes for chores that have been retired from the plan, so points for old ticks still add up.
